@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JAPP PDF 工作室</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="toolbar">
+  <div class="tb-group tb-brand">
+    <span class="logo">JAPP</span><span class="logo-sub">PDF 工作室</span>
+  </div>
+
+  <div class="tb-group">
+    <button id="btnOpen" title="開啟 PDF 檔案（會關閉目前文件）">📂 開啟</button>
+    <button id="btnImport" title="把另一個 PDF 的頁面加到文件最後（合併）" disabled>📥 匯入合併</button>
+    <button id="btnSave" title="下載編輯後的 PDF" disabled>💾 儲存 PDF</button>
+    <button id="btnUndo" title="復原上一步（Ctrl+Z）" disabled>↩︎ 復原</button>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <div class="tb-group" id="toolGroup">
+    <button id="toolSelect" class="tool active" data-tool="select" title="選取／移動註記">🖱️ 選取</button>
+    <button id="toolText"   class="tool" data-tool="text"   title="點一下頁面加入文字（支援中文）">🅣 文字</button>
+    <button id="toolHi"     class="tool" data-tool="highlight" title="拖曳畫出螢光筆標示">🖊️ 螢光筆</button>
+    <button id="toolWhite"  class="tool" data-tool="whiteout" title="拖曳畫出白色色塊，蓋住要修掉的內容">⬜ 修正帶</button>
+    <label class="tb-inline" title="文字大小">字級
+      <select id="fontSize">
+        <option>10</option><option>12</option><option>14</option>
+        <option selected>16</option><option>20</option><option>24</option>
+        <option>32</option><option>48</option>
+      </select>
+    </label>
+    <label class="tb-inline" title="文字顏色">顏色
+      <input type="color" id="fontColor" value="#d32f2f">
+    </label>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <div class="tb-group">
+    <button id="btnAddBlank" title="在目前頁之後插入一張空白頁" disabled>➕ 空白頁</button>
+    <button id="btnRotate" title="把勾選的頁面（沒勾選就是目前頁）順時針轉 90°" disabled>🔄 旋轉</button>
+    <button id="btnDelete" title="刪除勾選的頁面（沒勾選就是目前頁）" disabled>🗑️ 刪除頁</button>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <div class="tb-group">
+    <button id="btnZoomOut" title="縮小" disabled>−</button>
+    <span id="zoomLabel">125%</span>
+    <button id="btnZoomIn" title="放大" disabled>＋</button>
+    <button id="btnFit" title="符合視窗寬度" disabled>↔ 適寬</button>
+  </div>
+
+  <div class="tb-group tb-right">
+    <button id="btnPrev" title="上一頁（←）" disabled>◀</button>
+    <span id="pageLabel">– / –</span>
+    <button id="btnNext" title="下一頁（→）" disabled>▶</button>
+  </div>
+</header>
+
+<main id="workspace">
+  <aside id="sidebar">
+    <div id="thumbList"></div>
+    <div id="sidebarHint">縮圖可拖曳調整頁面順序</div>
+  </aside>
+
+  <section id="viewer">
+    <div id="emptyState">
+      <div class="drop-card" id="dropCard">
+        <div class="drop-icon">📄</div>
+        <div class="drop-title">把 PDF 拖到這裡，或點一下選擇檔案</div>
+        <div class="drop-sub">檔案只會在你的電腦裡處理，不會上傳到任何地方</div>
+      </div>
+    </div>
+    <div id="pageWrap" hidden>
+      <div id="pageStack">
+        <canvas id="pageCanvas"></canvas>
+        <div id="annotLayer"></div>
+        <div id="rubberBand" hidden></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<input type="file" id="fileOpen" accept="application/pdf,.pdf" hidden>
+<input type="file" id="fileImport" accept="application/pdf,.pdf" hidden>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/pdf-lib.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
