@@ -1,0 +1,211 @@
+/* JAPP PDF 工作室 */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #525659;
+  --panel: #323639;
+  --panel-2: #26292b;
+  --accent: #4f8cff;
+  --text: #e8eaed;
+  --text-dim: #9aa0a6;
+  --font: -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+}
+
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------- 工具列 ---------- */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid #1c1e1f;
+  user-select: none;
+  z-index: 10;
+}
+.tb-group { display: flex; align-items: center; gap: 4px; }
+.tb-right { margin-left: auto; }
+.tb-sep { width: 1px; height: 22px; background: #4a4e51; margin: 0 4px; }
+.tb-brand { margin-right: 6px; }
+.logo {
+  font-weight: 800; letter-spacing: 1px;
+  background: var(--accent); color: #fff;
+  padding: 2px 7px; border-radius: 6px 0 0 6px; font-size: 13px;
+}
+.logo-sub {
+  font-size: 13px; background: #1c1e1f; padding: 2px 8px;
+  border-radius: 0 6px 6px 0; color: var(--text-dim);
+}
+
+#toolbar button {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#toolbar button:hover:not(:disabled) { background: #45494d; }
+#toolbar button:disabled { opacity: .35; cursor: default; }
+#toolbar button.tool.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.tb-inline { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 4px; }
+.tb-inline select, .tb-inline input[type=color] {
+  font-family: var(--font); font-size: 12px;
+  background: #1c1e1f; color: var(--text);
+  border: 1px solid #4a4e51; border-radius: 4px; padding: 2px;
+}
+.tb-inline input[type=color] { width: 30px; height: 24px; padding: 1px; }
+#zoomLabel, #pageLabel { font-size: 12px; color: var(--text-dim); min-width: 44px; text-align: center; }
+
+/* ---------- 主區 ---------- */
+#workspace { flex: 1; display: flex; min-height: 0; }
+
+#sidebar {
+  width: 158px;
+  background: var(--panel-2);
+  border-right: 1px solid #1c1e1f;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+#thumbList { flex: 1; padding: 10px 0 4px; }
+#sidebarHint {
+  font-size: 11px; color: var(--text-dim);
+  text-align: center; padding: 6px; border-top: 1px solid #37393b;
+}
+
+.thumb {
+  position: relative;
+  margin: 0 auto 12px;
+  width: 122px;
+  cursor: pointer;
+  text-align: center;
+}
+.thumb .frame {
+  position: relative;
+  display: inline-block;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.5);
+  line-height: 0;
+}
+.thumb.current .frame { border-color: var(--accent); }
+.thumb canvas, .thumb .blank-thumb { border-radius: 2px; }
+.thumb .blank-thumb { display: inline-block; background: #fff; }
+.thumb .pno { font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.2; }
+.thumb input[type=checkbox] {
+  position: absolute; top: 4px; left: 4px; z-index: 2;
+  width: 15px; height: 15px; accent-color: var(--accent);
+  cursor: pointer;
+}
+.thumb.dragover-before .frame { box-shadow: -4px 0 0 0 var(--accent), 0 1px 4px rgba(0,0,0,.5); }
+.thumb.dragover-after .frame  { box-shadow:  4px 0 0 0 var(--accent), 0 1px 4px rgba(0,0,0,.5); }
+.thumb.dragging { opacity: .4; }
+
+/* ---------- 檢視區 ---------- */
+#viewer {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  display: flex;
+}
+
+#emptyState {
+  margin: auto;
+  text-align: center;
+}
+.drop-card {
+  border: 2px dashed #7a7f83;
+  border-radius: 14px;
+  padding: 56px 64px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.drop-card:hover, .drop-card.dragging {
+  border-color: var(--accent);
+  background: rgba(79,140,255,.08);
+}
+.drop-icon { font-size: 44px; margin-bottom: 12px; }
+.drop-title { font-size: 16px; margin-bottom: 6px; }
+.drop-sub { font-size: 12px; color: var(--text-dim); }
+
+#pageWrap { margin: auto; padding: 24px; }
+#pageStack {
+  position: relative;
+  box-shadow: 0 2px 12px rgba(0,0,0,.55);
+  background: #fff;
+  line-height: 0;
+}
+#pageCanvas { display: block; }
+
+/* ---------- 註記層 ---------- */
+#annotLayer {
+  position: absolute; inset: 0;
+  line-height: normal;
+}
+#annotLayer.tool-draw { cursor: crosshair; }
+#annotLayer.tool-text { cursor: text; }
+
+.annot {
+  position: absolute;
+}
+.annot.rect-highlight { background: rgba(255, 235, 59, .45); mix-blend-mode: multiply; }
+.annot.rect-whiteout  { background: #fff; }
+.annot.text {
+  font-family: var(--font);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: hidden;
+  line-height: 1.3;
+  padding: 2px;
+  outline: none;
+  background: transparent;
+}
+.annot.text[contenteditable="true"] { background: rgba(255,255,255,.75); overflow: visible; }
+
+.tool-select .annot { cursor: move; }
+.annot.selected { outline: 1.5px dashed var(--accent); outline-offset: 0; }
+.annot .handle {
+  position: absolute; right: -6px; bottom: -6px;
+  width: 11px; height: 11px;
+  background: var(--accent); border: 2px solid #fff; border-radius: 50%;
+  cursor: nwse-resize;
+  display: none;
+}
+.annot.selected .handle { display: block; }
+.annot .del-btn {
+  position: absolute; top: -11px; right: -11px;
+  width: 20px; height: 20px;
+  background: #d32f2f; color: #fff;
+  border: none; border-radius: 50%;
+  font-size: 12px; line-height: 18px; text-align: center;
+  cursor: pointer; display: none; padding: 0;
+}
+.annot.selected .del-btn { display: block; }
+
+#rubberBand {
+  position: absolute;
+  border: 1px dashed var(--accent);
+  background: rgba(79,140,255,.15);
+  pointer-events: none;
+}
+
+/* 捲軸 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #6b6f73; border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
