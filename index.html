@@ -27,15 +27,21 @@
     <button id="toolText"   class="tool" data-tool="text"   title="點一下頁面加入文字（支援中文）">🅣 文字</button>
     <button id="toolHi"     class="tool" data-tool="highlight" title="拖曳畫出螢光筆標示">🖊️ 螢光筆</button>
     <button id="toolWhite"  class="tool" data-tool="whiteout" title="拖曳畫出白色色塊，蓋住要修掉的內容">⬜ 修正帶</button>
-    <label class="tb-inline" title="文字大小">字級
-      <select id="fontSize">
-        <option>10</option><option>12</option><option>14</option>
-        <option selected>16</option><option>20</option><option>24</option>
-        <option>32</option><option>48</option>
-      </select>
+    <button id="toolReplace" class="tool" data-tool="replace" title="框選 PDF 原有的文字：自動蓋白、帶入原文與字級字體，直接修改">✏️ 取代文字</button>
+    <label class="tb-inline" title="文字大小（也可以選取文字後拖曳右下角圓點縮放）">字級
+      <button id="fontMinus" title="縮小文字">A−</button>
+      <input type="number" id="fontSize" value="16" min="6" max="200">
+      <button id="fontPlus" title="放大文字">A＋</button>
     </label>
     <label class="tb-inline" title="文字顏色">顏色
       <input type="color" id="fontColor" value="#d32f2f">
+    </label>
+    <label class="tb-inline" title="文字字體">字體
+      <select id="fontFamily">
+        <option value="sans" selected>黑體</option>
+        <option value="serif">明體</option>
+        <option value="kai">楷書</option>
+      </select>
     </label>
   </div>
 

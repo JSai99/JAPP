@@ -9,7 +9,12 @@
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
 
-const FONT_STACK = `-apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif`;
+const FONT_STACKS = {
+  sans: `-apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif`,
+  serif: `"Times New Roman", "PMingLiU", "新細明體", "Noto Serif TC", serif`,
+  kai: `"DFKai-SB", "標楷體", "BiauKai", "Kaiti TC", "Noto Serif TC", serif`,
+};
+function fontStackOf(a) { return FONT_STACKS[a.font] || FONT_STACKS.sans; }
 const LINE_HEIGHT = 1.3;
 const TEXT_PAD = 2;          // 文字註記內距（scale 1 px）
 const MAX_UNDO = 50;
@@ -40,7 +45,7 @@ const els = {
   pageWrap: $('pageWrap'), pageStack: $('pageStack'), canvas: $('pageCanvas'),
   annotLayer: $('annotLayer'), rubber: $('rubberBand'),
   pageLabel: $('pageLabel'), zoomLabel: $('zoomLabel'),
-  fontSize: $('fontSize'), fontColor: $('fontColor'),
+  fontSize: $('fontSize'), fontColor: $('fontColor'), fontFamily: $('fontFamily'),
   fileOpen: $('fileOpen'), fileImport: $('fileImport'), dropCard: $('dropCard'),
 };
 
@@ -323,7 +328,7 @@ function renderAnnotLayer() {
   layer.innerHTML = '';
   layer.className = '';
   if (state.tool === 'text') layer.classList.add('tool-text');
-  else if (state.tool === 'highlight' || state.tool === 'whiteout') layer.classList.add('tool-draw');
+  else if (state.tool === 'highlight' || state.tool === 'whiteout' || state.tool === 'replace') layer.classList.add('tool-draw');
   else layer.classList.add('tool-select');
 
   const pg = state.pages[state.cur];
@@ -350,6 +355,7 @@ function buildAnnotEl(pg, a) {
     el.style.fontSize = (a.size * z) + 'px';
     el.style.padding = (TEXT_PAD * z) + 'px';
     el.style.color = a.color;
+    el.style.fontFamily = fontStackOf(a);
     el.textContent = a.text;
   }
   if (isSelected(pg, a)) {
@@ -441,7 +447,7 @@ els.annotLayer.addEventListener('mousedown', (e) => {
     const a = {
       id: 'a' + (uidSeq++), type: 'text',
       x: pos.x, y: pos.y, w: 220, h: size * LINE_HEIGHT + TEXT_PAD * 2,
-      size, color: els.fontColor.value, text: '',
+      size, color: els.fontColor.value, font: els.fontFamily.value, text: '',
     };
     pg.annots.push(a);
     state.selectedAnnot = { pageUid: pg.uid, annotId: a.id };
@@ -451,7 +457,7 @@ els.annotLayer.addEventListener('mousedown', (e) => {
     return;
   }
 
-  if (state.tool === 'highlight' || state.tool === 'whiteout') {
+  if (state.tool === 'highlight' || state.tool === 'whiteout' || state.tool === 'replace') {
     drag = { mode: 'draw', start: pos, tool: state.tool };
     e.preventDefault();
     return;
@@ -463,8 +469,13 @@ els.annotLayer.addEventListener('mousedown', (e) => {
     const a = pg.annots.find(x => x.id === annotEl.dataset.annotId);
     if (!a) return;
     state.selectedAnnot = { pageUid: pg.uid, annotId: a.id };
+    if (a.type === 'text') {
+      els.fontSize.value = a.size;
+      els.fontColor.value = a.color;
+      els.fontFamily.value = a.font || 'sans';
+    }
     if (e.target.classList.contains('handle')) {
-      drag = { mode: 'resize', a, start: pos, ow: a.w, oh: a.h, moved: false };
+      drag = { mode: 'resize', a, start: pos, ow: a.w, oh: a.h, os: a.size, moved: false };
     } else {
       drag = { mode: 'move', a, start: pos, ox: a.x, oy: a.y, moved: false };
     }
@@ -498,8 +509,16 @@ window.addEventListener('mousemove', (e) => {
     positionAnnotEl(drag.a);
   } else if (drag.mode === 'resize') {
     if (!drag.moved) { pushUndo(); drag.moved = true; }
-    drag.a.w = Math.max(12, drag.ow + (pos.x - drag.start.x));
-    drag.a.h = Math.max(8, drag.oh + (pos.y - drag.start.y));
+    if (drag.a.type === 'text') {
+      // 拖曳右下角＝等比例縮放文字
+      const factor = Math.max(0.1, (drag.ow + (pos.x - drag.start.x)) / drag.ow);
+      drag.a.w = Math.max(24, drag.ow * factor);
+      drag.a.size = Math.min(200, Math.max(6, Math.round(drag.os * factor)));
+      els.fontSize.value = drag.a.size;
+    } else {
+      drag.a.w = Math.max(12, drag.ow + (pos.x - drag.start.x));
+      drag.a.h = Math.max(8, drag.oh + (pos.y - drag.start.y));
+    }
     positionAnnotEl(drag.a);
   }
 });
@@ -510,13 +529,17 @@ window.addEventListener('mouseup', () => {
   if (drag.mode === 'draw' && pg) {
     els.rubber.hidden = true;
     if (drag.rect && drag.rect.w > 4 && drag.rect.h > 4) {
-      pushUndo();
-      pg.annots.push({
-        id: 'a' + (uidSeq++), type: 'rect',
-        mode: drag.tool, ...drag.rect,
-      });
-      state.dirty = true;
-      renderAnnotLayer();
+      if (drag.tool === 'replace') {
+        handleReplace(pg, drag.rect);
+      } else {
+        pushUndo();
+        pg.annots.push({
+          id: 'a' + (uidSeq++), type: 'rect',
+          mode: drag.tool, ...drag.rect,
+        });
+        state.dirty = true;
+        renderAnnotLayer();
+      }
     }
   } else if (drag.moved) {
     state.dirty = true;
@@ -550,8 +573,12 @@ function positionAnnotEl(a) {
   el.style.left = a.x * z + 'px';
   el.style.top = a.y * z + 'px';
   el.style.width = a.w * z + 'px';
-  if (a.type === 'rect') el.style.height = a.h * z + 'px';
-  else el.style.minHeight = a.h * z + 'px';
+  if (a.type === 'rect') {
+    el.style.height = a.h * z + 'px';
+  } else {
+    el.style.minHeight = a.h * z + 'px';
+    el.style.fontSize = a.size * z + 'px';
+  }
 }
 
 /* ============================================================
@@ -629,6 +656,146 @@ async function rotatePages() {
 }
 
 /* ============================================================
+ * ✏️ 取代文字：框選原文 → 自動蓋白 → 帶入原文/字級/字體/顏色直接改
+ * ============================================================ */
+
+/* 讀出頁面所有文字片段（scale1 顯示座標），並猜測字體分類 */
+async function getTextItems(pg) {
+  const src = state.sources[pg.srcId];
+  if (!src.textCache) src.textCache = new Map();
+  const key = pg.srcIdx + ':' + pg.rot;
+  if (src.textCache.has(key)) return src.textCache.get(key);
+
+  const pjPage = await getPjPage(pg);
+  const vp = pjPage.getViewport({ scale: 1, rotation: await totalRotation(pg) });
+  const tc = await pjPage.getTextContent();
+  const items = [];
+  for (const it of tc.items) {
+    if (!it.str || !it.str.trim()) continue;
+    const m = it.transform; // PDF 使用者空間
+    const fh = Math.hypot(m[2], m[3]) || 10;
+    // 以基線推出文字方塊（上緣約 0.85 個字高、下緣約 0.22）
+    const p1 = vp.convertToViewportPoint(m[4], m[5] - fh * 0.22);
+    const p2 = vp.convertToViewportPoint(m[4] + it.width, m[5] + fh * 0.85);
+    const rect = {
+      x: Math.min(p1[0], p2[0]), y: Math.min(p1[1], p2[1]),
+      w: Math.abs(p2[0] - p1[0]), h: Math.abs(p2[1] - p1[1]),
+    };
+    let font = 'sans';
+    const style = tc.styles && tc.styles[it.fontName];
+    if (style && style.fontFamily === 'serif') font = 'serif';
+    try {
+      // 渲染後可從 commonObjs 取得內嵌字型的真實名稱，做更準的判斷
+      const fobj = pjPage.commonObjs.get(it.fontName);
+      const nm = (fobj && fobj.name) || '';
+      if (/kai|biaukai|dfkai|楷/i.test(nm)) font = 'kai';
+      else if (/ming|sung|song|serif|times|georgia|roman|garamond|明|宋/i.test(nm)) font = 'serif';
+    } catch (e) { /* 字型物件尚未載入就用啟發式結果 */ }
+    items.push({ str: it.str, rect, size: fh, font });
+  }
+  src.textCache.set(key, items);
+  return items;
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+/* 把命中的文字片段串回多行文字 */
+function joinMatchedText(ms) {
+  let out = '', lastY = null, lastH = 12;
+  for (const m of ms) {
+    if (lastY !== null && Math.abs(m.rect.y - lastY) > lastH * 0.5) {
+      out += '\n';
+    } else if (out && /[A-Za-z0-9)]$/.test(out) && /^[A-Za-z0-9(]/.test(m.str)) {
+      out += ' ';
+    }
+    out += m.str;
+    lastY = m.rect.y; lastH = m.rect.h;
+  }
+  return out;
+}
+
+/* 從目前渲染好的畫布取樣文字顏色（優先取深色像素的平均） */
+function sampleTextColor(rect) {
+  try {
+    const k = (window.devicePixelRatio || 1) * state.zoom;
+    const x = Math.max(0, Math.round(rect.x * k));
+    const y = Math.max(0, Math.round(rect.y * k));
+    const w = Math.min(els.canvas.width - x, Math.round(rect.w * k));
+    const h = Math.min(els.canvas.height - y, Math.round(rect.h * k));
+    if (w < 1 || h < 1) return null;
+    const data = els.canvas.getContext('2d').getImageData(x, y, w, h).data;
+    const acc = { dark: [0, 0, 0, 0], any: [0, 0, 0, 0] };
+    for (let i = 0; i < data.length; i += 4) {
+      const R = data[i], G = data[i + 1], B = data[i + 2];
+      const lum = 0.299 * R + 0.587 * G + 0.114 * B;
+      const colorful = Math.max(R, G, B) - Math.min(R, G, B) > 40;
+      if (lum < 140 || (colorful && lum < 200)) {
+        acc.dark[0] += R; acc.dark[1] += G; acc.dark[2] += B; acc.dark[3]++;
+      } else if (lum < 235) {
+        acc.any[0] += R; acc.any[1] += G; acc.any[2] += B; acc.any[3]++;
+      }
+    }
+    const use = acc.dark[3] > 8 ? acc.dark : (acc.any[3] > 8 ? acc.any : null);
+    if (!use) return null;
+    const hex = (v) => Math.round(v / use[3]).toString(16).padStart(2, '0');
+    return '#' + hex(use[0]) + hex(use[1]) + hex(use[2]);
+  } catch (e) { return null; }
+}
+
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+async function handleReplace(pg, rect) {
+  pushUndo();
+  let matches = [];
+  if (pg.kind === 'src') {
+    try { matches = (await getTextItems(pg)).filter(it => rectsOverlap(it.rect, rect)); }
+    catch (e) { matches = []; }
+  }
+
+  let cover = { ...rect };
+  let size = clampFontSize(+els.fontSize.value);
+  let color = '#000000';
+  let font = els.fontFamily.value;
+  let text = '';
+  if (matches.length) {
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const m of matches) {
+      x1 = Math.min(x1, m.rect.x); y1 = Math.min(y1, m.rect.y);
+      x2 = Math.max(x2, m.rect.x + m.rect.w); y2 = Math.max(y2, m.rect.y + m.rect.h);
+    }
+    cover = { x: x1 - 1.5, y: y1 - 1.5, w: x2 - x1 + 3, h: y2 - y1 + 3 };
+    size = clampFontSize(median(matches.map(m => m.size)));
+    font = matches[0].font;
+    text = joinMatchedText(matches);
+    color = sampleTextColor({ x: x1, y: y1, w: x2 - x1, h: y2 - y1 }) || '#000000';
+  }
+
+  pg.annots.push({ id: 'a' + (uidSeq++), type: 'rect', mode: 'whiteout', ...cover });
+  // 替換的字常比原文長：框寬給到原文的 1.6 倍 + 60，但不超出頁面右緣
+  const pageW = (await displaySize(pg)).w;
+  const a = {
+    id: 'a' + (uidSeq++), type: 'text',
+    x: cover.x, y: cover.y - TEXT_PAD,
+    w: Math.max(120, Math.min(pageW - cover.x - 6, cover.w * 1.6 + 60)),
+    h: Math.max(size * LINE_HEIGHT + TEXT_PAD * 2, cover.h),
+    size, color, font, text,
+  };
+  pg.annots.push(a);
+  state.dirty = true;
+  state.selectedAnnot = { pageUid: pg.uid, annotId: a.id };
+  els.fontSize.value = size;
+  els.fontColor.value = color;
+  els.fontFamily.value = font;
+  setTool('select');
+  startTextEdit(pg, a);
+}
+
+/* ============================================================
  * 匯出（pdf-lib）
  * ============================================================ */
 
@@ -673,7 +840,7 @@ function textAnnotToCanvas(a, sf) {
   canvas.width = Math.max(1, Math.round(a.w * sf));
   canvas.height = Math.max(1, Math.round(a.h * sf));
   const ctx = canvas.getContext('2d');
-  ctx.font = `${a.size * sf}px ${FONT_STACK}`;
+  ctx.font = `${a.size * sf}px ${fontStackOf(a)}`;
   ctx.fillStyle = a.color;
   ctx.textBaseline = 'top';
   const pad = TEXT_PAD * sf;
@@ -853,21 +1020,45 @@ $('btnNext').addEventListener('click', () => gotoPage(state.cur + 1));
 document.querySelectorAll('#toolGroup .tool').forEach(b =>
   b.addEventListener('click', () => setTool(b.dataset.tool)));
 
-els.fontSize.addEventListener('change', () => {
+function clampFontSize(v) {
+  return Math.min(200, Math.max(6, Math.round(v) || 16));
+}
+
+/* 套用字級到選取中的文字註記（沒有選取時只改預設值） */
+function applyFontSize(size) {
+  size = clampFontSize(size);
+  els.fontSize.value = size;
   const sel = getSelectedTextAnnot();
-  if (sel) {
-    pushUndo();
-    sel.a.size = +els.fontSize.value;
-    sel.a.h = Math.max(sel.a.size * LINE_HEIGHT + TEXT_PAD * 2, sel.a.h);
-    state.dirty = true;
+  if (!sel) return;
+  pushUndo();
+  sel.a.size = size;
+  state.dirty = true;
+  renderAnnotLayer();
+  // 字級變了，高度跟著重新計算
+  const el = els.annotLayer.querySelector(`[data-annot-id="${sel.a.id}"]`);
+  if (el) {
+    sel.a.h = Math.max(size * LINE_HEIGHT + TEXT_PAD * 2, el.scrollHeight / state.zoom);
     renderAnnotLayer();
   }
-});
+}
+
+els.fontSize.addEventListener('change', () => applyFontSize(+els.fontSize.value));
+$('fontMinus').addEventListener('click', () => applyFontSize(+els.fontSize.value - 2));
+$('fontPlus').addEventListener('click', () => applyFontSize(+els.fontSize.value + 2));
 els.fontColor.addEventListener('change', () => {
   const sel = getSelectedTextAnnot();
   if (sel) {
     pushUndo();
     sel.a.color = els.fontColor.value;
+    state.dirty = true;
+    renderAnnotLayer();
+  }
+});
+$('fontFamily').addEventListener('change', () => {
+  const sel = getSelectedTextAnnot();
+  if (sel) {
+    pushUndo();
+    sel.a.font = $('fontFamily').value;
     state.dirty = true;
     renderAnnotLayer();
   }
