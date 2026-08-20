@@ -463,8 +463,9 @@ els.annotLayer.addEventListener('mousedown', (e) => {
     const a = pg.annots.find(x => x.id === annotEl.dataset.annotId);
     if (!a) return;
     state.selectedAnnot = { pageUid: pg.uid, annotId: a.id };
+    if (a.type === 'text') els.fontSize.value = a.size;
     if (e.target.classList.contains('handle')) {
-      drag = { mode: 'resize', a, start: pos, ow: a.w, oh: a.h, moved: false };
+      drag = { mode: 'resize', a, start: pos, ow: a.w, oh: a.h, os: a.size, moved: false };
     } else {
       drag = { mode: 'move', a, start: pos, ox: a.x, oy: a.y, moved: false };
     }
@@ -498,8 +499,16 @@ window.addEventListener('mousemove', (e) => {
     positionAnnotEl(drag.a);
   } else if (drag.mode === 'resize') {
     if (!drag.moved) { pushUndo(); drag.moved = true; }
-    drag.a.w = Math.max(12, drag.ow + (pos.x - drag.start.x));
-    drag.a.h = Math.max(8, drag.oh + (pos.y - drag.start.y));
+    if (drag.a.type === 'text') {
+      // 拖曳右下角＝等比例縮放文字
+      const factor = Math.max(0.1, (drag.ow + (pos.x - drag.start.x)) / drag.ow);
+      drag.a.w = Math.max(24, drag.ow * factor);
+      drag.a.size = Math.min(200, Math.max(6, Math.round(drag.os * factor)));
+      els.fontSize.value = drag.a.size;
+    } else {
+      drag.a.w = Math.max(12, drag.ow + (pos.x - drag.start.x));
+      drag.a.h = Math.max(8, drag.oh + (pos.y - drag.start.y));
+    }
     positionAnnotEl(drag.a);
   }
 });
@@ -550,8 +559,12 @@ function positionAnnotEl(a) {
   el.style.left = a.x * z + 'px';
   el.style.top = a.y * z + 'px';
   el.style.width = a.w * z + 'px';
-  if (a.type === 'rect') el.style.height = a.h * z + 'px';
-  else el.style.minHeight = a.h * z + 'px';
+  if (a.type === 'rect') {
+    el.style.height = a.h * z + 'px';
+  } else {
+    el.style.minHeight = a.h * z + 'px';
+    el.style.fontSize = a.size * z + 'px';
+  }
 }
 
 /* ============================================================
@@ -853,16 +866,31 @@ $('btnNext').addEventListener('click', () => gotoPage(state.cur + 1));
 document.querySelectorAll('#toolGroup .tool').forEach(b =>
   b.addEventListener('click', () => setTool(b.dataset.tool)));
 
-els.fontSize.addEventListener('change', () => {
+function clampFontSize(v) {
+  return Math.min(200, Math.max(6, Math.round(v) || 16));
+}
+
+/* 套用字級到選取中的文字註記（沒有選取時只改預設值） */
+function applyFontSize(size) {
+  size = clampFontSize(size);
+  els.fontSize.value = size;
   const sel = getSelectedTextAnnot();
-  if (sel) {
-    pushUndo();
-    sel.a.size = +els.fontSize.value;
-    sel.a.h = Math.max(sel.a.size * LINE_HEIGHT + TEXT_PAD * 2, sel.a.h);
-    state.dirty = true;
+  if (!sel) return;
+  pushUndo();
+  sel.a.size = size;
+  state.dirty = true;
+  renderAnnotLayer();
+  // 字級變了，高度跟著重新計算
+  const el = els.annotLayer.querySelector(`[data-annot-id="${sel.a.id}"]`);
+  if (el) {
+    sel.a.h = Math.max(size * LINE_HEIGHT + TEXT_PAD * 2, el.scrollHeight / state.zoom);
     renderAnnotLayer();
   }
-});
+}
+
+els.fontSize.addEventListener('change', () => applyFontSize(+els.fontSize.value));
+$('fontMinus').addEventListener('click', () => applyFontSize(+els.fontSize.value - 2));
+$('fontPlus').addEventListener('click', () => applyFontSize(+els.fontSize.value + 2));
 els.fontColor.addEventListener('change', () => {
   const sel = getSelectedTextAnnot();
   if (sel) {
