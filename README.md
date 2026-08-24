@@ -34,3 +34,9 @@ JAPP/
 - **一個工具 = 一個頂層資料夾**，英文短名（kebab-case），內含自己的 `index.html` 與 `README.md`
 - 共用資源（函式庫、字型等）放 `shared/`
 - 純靜態網頁、零建置流程；某個工具長大後可「畢業」搬到獨立 repo
+
+## 授權
+
+本專案以 [MIT License](LICENSE) 釋出——歡迎自由使用、修改、散布。
+
+內含的開源函式庫沿用其原始授權：[pdf.js](https://mozilla.github.io/pdf.js/)（Apache-2.0）、[pdf-lib](https://pdf-lib.js.org/)（MIT）。
