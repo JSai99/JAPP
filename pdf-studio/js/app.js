@@ -7,12 +7,14 @@
  * ============================================================ */
 'use strict';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = '../shared/vendor/pdf.worker.min.js';
 
 const FONT_STACKS = {
   sans: `-apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif`,
   serif: `"Times New Roman", "PMingLiU", "新細明體", "Noto Serif TC", serif`,
   kai: `"DFKai-SB", "標楷體", "BiauKai", "Kaiti TC", "Noto Serif TC", serif`,
+  times: `"Times New Roman", Times, Georgia, "Noto Serif TC", serif`,
+  arial: `Arial, Helvetica, "Microsoft JhengHei", "Noto Sans TC", sans-serif`,
 };
 function fontStackOf(a) { return FONT_STACKS[a.font] || FONT_STACKS.sans; }
 const LINE_HEIGHT = 1.3;
@@ -28,6 +30,7 @@ const state = {
   zoom: 1.25,
   tool: 'select',
   selectedAnnot: null,   // { pageUid, annotId }
+  search: { query: '', hits: [], cur: -1 },  // hits: {pageIdx, rects:[{x,y,w,h}]}
   undoStack: [],
   dirty: false,
   docName: '文件',
@@ -46,7 +49,11 @@ const els = {
   annotLayer: $('annotLayer'), rubber: $('rubberBand'),
   pageLabel: $('pageLabel'), zoomLabel: $('zoomLabel'),
   fontSize: $('fontSize'), fontColor: $('fontColor'), fontFamily: $('fontFamily'),
+  btnBold: $('btnBold'), btnItalic: $('btnItalic'),
   fileOpen: $('fileOpen'), fileImport: $('fileImport'), dropCard: $('dropCard'),
+  searchLayer: $('searchLayer'), searchBox: $('searchBox'),
+  searchPrev: $('searchPrev'), searchNext: $('searchNext'),
+  searchCount: $('searchCount'), searchClear: $('searchClear'),
 };
 
 /* ============================================================
@@ -269,6 +276,7 @@ function gotoPage(i) {
   if (i < 0 || i >= state.pages.length) return;
   state.cur = i;
   state.selectedAnnot = null;
+  els.viewer.scrollTop = 0;   // 換頁回到頁首（搜尋跳轉會在渲染後再捲到命中處）
   renderMain();
   els.thumbList.querySelectorAll('.thumb').forEach((t, idx) =>
     t.classList.toggle('current', idx === i));
@@ -317,6 +325,7 @@ async function renderMain() {
   }
   if (token !== renderToken) return;
   renderAnnotLayer();
+  renderSearchLayer();
   updateToolbar();
 }
 
@@ -356,6 +365,8 @@ function buildAnnotEl(pg, a) {
     el.style.padding = (TEXT_PAD * z) + 'px';
     el.style.color = a.color;
     el.style.fontFamily = fontStackOf(a);
+    el.style.fontWeight = a.bold ? '700' : '400';
+    el.style.fontStyle = a.italic ? 'italic' : 'normal';
     el.textContent = a.text;
   }
   if (isSelected(pg, a)) {
@@ -447,7 +458,10 @@ els.annotLayer.addEventListener('mousedown', (e) => {
     const a = {
       id: 'a' + (uidSeq++), type: 'text',
       x: pos.x, y: pos.y, w: 220, h: size * LINE_HEIGHT + TEXT_PAD * 2,
-      size, color: els.fontColor.value, font: els.fontFamily.value, text: '',
+      size, color: els.fontColor.value, font: els.fontFamily.value,
+      bold: els.btnBold.classList.contains('active'),
+      italic: els.btnItalic.classList.contains('active'),
+      text: '',
     };
     pg.annots.push(a);
     state.selectedAnnot = { pageUid: pg.uid, annotId: a.id };
@@ -473,6 +487,8 @@ els.annotLayer.addEventListener('mousedown', (e) => {
       els.fontSize.value = a.size;
       els.fontColor.value = a.color;
       els.fontFamily.value = a.font || 'sans';
+      els.btnBold.classList.toggle('active', !!a.bold);
+      els.btnItalic.classList.toggle('active', !!a.italic);
     }
     if (e.target.classList.contains('handle')) {
       drag = { mode: 'resize', a, start: pos, ow: a.w, oh: a.h, os: a.size, moved: false };
@@ -681,7 +697,7 @@ async function getTextItems(pg) {
       x: Math.min(p1[0], p2[0]), y: Math.min(p1[1], p2[1]),
       w: Math.abs(p2[0] - p1[0]), h: Math.abs(p2[1] - p1[1]),
     };
-    let font = 'sans';
+    let font = 'sans', bold = false;
     const style = tc.styles && tc.styles[it.fontName];
     if (style && style.fontFamily === 'serif') font = 'serif';
     try {
@@ -689,9 +705,12 @@ async function getTextItems(pg) {
       const fobj = pjPage.commonObjs.get(it.fontName);
       const nm = (fobj && fobj.name) || '';
       if (/kai|biaukai|dfkai|楷/i.test(nm)) font = 'kai';
-      else if (/ming|sung|song|serif|times|georgia|roman|garamond|明|宋/i.test(nm)) font = 'serif';
+      else if (/times|roman|georgia|garamond/i.test(nm)) font = 'times';
+      else if (/arial|helvetica/i.test(nm)) font = 'arial';
+      else if (/ming|sung|song|serif|明|宋/i.test(nm)) font = 'serif';
+      if (/bold|heavy|black|semibold|medium/i.test(nm)) bold = true;
     } catch (e) { /* 字型物件尚未載入就用啟發式結果 */ }
-    items.push({ str: it.str, rect, size: fh, font });
+    items.push({ str: it.str, rect, size: fh, font, bold });
   }
   src.textCache.set(key, items);
   return items;
@@ -761,6 +780,7 @@ async function handleReplace(pg, rect) {
   let size = clampFontSize(+els.fontSize.value);
   let color = '#000000';
   let font = els.fontFamily.value;
+  let bold = false;
   let text = '';
   if (matches.length) {
     let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
@@ -771,6 +791,7 @@ async function handleReplace(pg, rect) {
     cover = { x: x1 - 1.5, y: y1 - 1.5, w: x2 - x1 + 3, h: y2 - y1 + 3 };
     size = clampFontSize(median(matches.map(m => m.size)));
     font = matches[0].font;
+    bold = matches[0].bold;
     text = joinMatchedText(matches);
     color = sampleTextColor({ x: x1, y: y1, w: x2 - x1, h: y2 - y1 }) || '#000000';
   }
@@ -783,7 +804,7 @@ async function handleReplace(pg, rect) {
     x: cover.x, y: cover.y - TEXT_PAD,
     w: Math.max(120, Math.min(pageW - cover.x - 6, cover.w * 1.6 + 60)),
     h: Math.max(size * LINE_HEIGHT + TEXT_PAD * 2, cover.h),
-    size, color, font, text,
+    size, color, font, bold, italic: false, text,
   };
   pg.annots.push(a);
   state.dirty = true;
@@ -791,8 +812,106 @@ async function handleReplace(pg, rect) {
   els.fontSize.value = size;
   els.fontColor.value = color;
   els.fontFamily.value = font;
+  els.btnBold.classList.toggle('active', bold);
+  els.btnItalic.classList.remove('active');
   setTool('select');
   startTextEdit(pg, a);
+}
+
+/* ============================================================
+ * 🔍 關鍵字搜尋（複用 getTextItems 的文字讀取引擎）
+ * ============================================================ */
+async function runSearch(q) {
+  state.search = { query: q, hits: [], cur: -1 };
+  if (q) {
+    const ql = q.toLowerCase();
+    for (let pi = 0; pi < state.pages.length; pi++) {
+      const pg = state.pages[pi];
+      if (pg.kind !== 'src') continue;
+      let items;
+      try { items = await getTextItems(pg); } catch (e) { continue; }
+      // 串接整頁文字並保留「字元 → 文字片段」的對應，跨片段的關鍵字也找得到
+      let text = '';
+      const map = [];
+      for (const it of items) {
+        for (let c = 0; c < it.str.length; c++) map.push({ it, off: c });
+        text += it.str;
+      }
+      const tl = text.toLowerCase();
+      let idx = 0;
+      while ((idx = tl.indexOf(ql, idx)) !== -1) {
+        const rects = [];
+        let k = idx;
+        while (k < idx + ql.length) {
+          const { it } = map[k];
+          let end = k;
+          while (end < idx + ql.length && map[end].it === it) end++;
+          const f0 = map[k].off / it.str.length;
+          const f1 = (map[end - 1].off + 1) / it.str.length;
+          rects.push({
+            x: it.rect.x + it.rect.w * f0, y: it.rect.y,
+            w: it.rect.w * (f1 - f0), h: it.rect.h,
+          });
+          k = end;
+        }
+        state.search.hits.push({ pageIdx: pi, rects });
+        idx += ql.length;
+      }
+    }
+  }
+  if (state.search.hits.length) gotoHit(0);
+  else renderSearchLayer();
+  updateSearchUI();
+}
+
+function gotoHit(i) {
+  const total = state.search.hits.length;
+  if (!total) return;
+  state.search.cur = ((i % total) + total) % total;
+  const h = state.search.hits[state.search.cur];
+  if (state.cur !== h.pageIdx) {
+    gotoPage(h.pageIdx);   // renderMain 完成時會畫搜尋標示
+  } else {
+    renderSearchLayer();
+  }
+  // 捲動到命中位置（等渲染完成）
+  setTimeout(() => {
+    const r = h.rects[0];
+    if (!r) return;
+    els.viewer.scrollTop = Math.max(0, r.y * state.zoom - els.viewer.clientHeight / 3);
+  }, 350);
+  updateSearchUI();
+}
+
+function renderSearchLayer() {
+  els.searchLayer.innerHTML = '';
+  const z = state.zoom;
+  state.search.hits.forEach((h, i) => {
+    if (h.pageIdx !== state.cur) return;
+    for (const r of h.rects) {
+      const el = document.createElement('div');
+      el.className = 'search-hit' + (i === state.search.cur ? ' active' : '');
+      el.style.left = r.x * z + 'px';
+      el.style.top = r.y * z + 'px';
+      el.style.width = Math.max(2, r.w * z) + 'px';
+      el.style.height = r.h * z + 'px';
+      els.searchLayer.appendChild(el);
+    }
+  });
+}
+
+function updateSearchUI() {
+  const n = state.search.hits.length;
+  els.searchCount.textContent = state.search.query ? (n ? `${state.search.cur + 1}/${n}` : '0 筆') : '';
+  els.searchPrev.disabled = els.searchNext.disabled = !n;
+  els.searchClear.disabled = !state.search.query;
+}
+
+function clearSearch() {
+  state.search = { query: '', hits: [], cur: -1 };
+  els.searchBox.value = '';
+  renderSearchLayer();
+  updateSearchUI();
 }
 
 /* ============================================================
@@ -840,7 +959,7 @@ function textAnnotToCanvas(a, sf) {
   canvas.width = Math.max(1, Math.round(a.w * sf));
   canvas.height = Math.max(1, Math.round(a.h * sf));
   const ctx = canvas.getContext('2d');
-  ctx.font = `${a.size * sf}px ${fontStackOf(a)}`;
+  ctx.font = `${a.italic ? 'italic ' : ''}${a.bold ? 'bold ' : ''}${a.size * sf}px ${fontStackOf(a)}`;
   ctx.fillStyle = a.color;
   ctx.textBaseline = 'top';
   const pad = TEXT_PAD * sf;
@@ -978,6 +1097,7 @@ function updateToolbar() {
     $(id).disabled = !has;
   }
   $('btnUndo').disabled = !state.undoStack.length;
+  els.searchBox.disabled = !has;
   if (has) {
     $('btnPrev').disabled = state.cur === 0;
     $('btnNext').disabled = state.cur >= state.pages.length - 1;
@@ -996,6 +1116,8 @@ function setStatusFlash(msg) {
 }
 
 function refreshAll() {
+  // 頁面結構變動後，舊的搜尋結果頁碼不再可靠，直接清掉
+  clearSearch();
   renderThumbs();
   renderMain();
   updateToolbar();
@@ -1054,6 +1176,39 @@ els.fontColor.addEventListener('change', () => {
     renderAnnotLayer();
   }
 });
+function toggleTextStyle(btn, prop) {
+  btn.classList.toggle('active');
+  const on = btn.classList.contains('active');
+  const sel = getSelectedTextAnnot();
+  if (sel) {
+    pushUndo();
+    sel.a[prop] = on;
+    state.dirty = true;
+    renderAnnotLayer();
+  }
+}
+els.btnBold.addEventListener('click', () => toggleTextStyle(els.btnBold, 'bold'));
+els.btnItalic.addEventListener('click', () => toggleTextStyle(els.btnItalic, 'italic'));
+
+/* 搜尋列 */
+els.searchBox.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') {
+    const q = els.searchBox.value.trim();
+    if (q && q === state.search.query && state.search.hits.length) {
+      gotoHit(state.search.cur + (e.shiftKey ? -1 : 1));
+    } else {
+      runSearch(q);
+    }
+  } else if (e.key === 'Escape') {
+    clearSearch();
+    els.searchBox.blur();
+  }
+});
+els.searchPrev.addEventListener('click', () => gotoHit(state.search.cur - 1));
+els.searchNext.addEventListener('click', () => gotoHit(state.search.cur + 1));
+els.searchClear.addEventListener('click', clearSearch);
+
 $('fontFamily').addEventListener('change', () => {
   const sel = getSelectedTextAnnot();
   if (sel) {

@@ -79,6 +79,22 @@ body {
 .tb-inline input[type=color] { width: 30px; height: 24px; padding: 1px; }
 #zoomLabel, #pageLabel { font-size: 12px; color: var(--text-dim); min-width: 44px; text-align: center; }
 
+#toolbar button.style-toggle { padding: 5px 8px; min-width: 30px; }
+#toolbar button.style-toggle.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+
+.tb-search { display: flex; align-items: center; gap: 3px; font-size: 13px; }
+.tb-search input {
+  width: 130px;
+  font-family: var(--font); font-size: 12px;
+  background: #1c1e1f; color: var(--text);
+  border: 1px solid #4a4e51; border-radius: 4px; padding: 4px 6px;
+}
+.tb-search input:disabled { opacity: .35; }
+.tb-search button { padding: 4px 5px !important; font-size: 10px !important; }
+#searchCount { font-size: 11px; color: var(--text-dim); min-width: 34px; text-align: center; }
+
 /* ---------- 主區 ---------- */
 #workspace { flex: 1; display: flex; min-height: 0; }
 
@@ -159,6 +175,18 @@ body {
   line-height: 0;
 }
 #pageCanvas { display: block; }
+
+/* ---------- 搜尋標示層 ---------- */
+#searchLayer { position: absolute; inset: 0; pointer-events: none; }
+.search-hit {
+  position: absolute;
+  background: rgba(255, 200, 0, .4);
+  border-radius: 2px;
+}
+.search-hit.active {
+  background: rgba(255, 130, 0, .55);
+  outline: 2px solid #ff8200;
+}
 
 /* ---------- 註記層 ---------- */
 #annotLayer {
