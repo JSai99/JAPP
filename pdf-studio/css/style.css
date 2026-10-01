@@ -99,13 +99,27 @@ body {
 #workspace { flex: 1; display: flex; min-height: 0; }
 
 #sidebar {
-  width: 158px;
+  width: var(--sidebar-w, 158px);
+  flex-shrink: 0;
   background: var(--panel-2);
   border-right: 1px solid #1c1e1f;
   display: flex; flex-direction: column;
   overflow-y: auto;
 }
 #thumbList { flex: 1; padding: 10px 0 4px; }
+#workspace.sidebar-collapsed #sidebar { width: 0; border-right: none; overflow: hidden; }
+
+/* 側欄拖拉把手 */
+#sidebarResizer {
+  flex: 0 0 6px;
+  cursor: col-resize;
+  background: #1c1e1f;
+  transition: background .15s;
+  touch-action: none;
+}
+#sidebarResizer:hover, #sidebarResizer.dragging { background: var(--accent); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing #viewer { pointer-events: none; }
 #sidebarHint {
   font-size: 11px; color: var(--text-dim);
   text-align: center; padding: 6px; border-top: 1px solid #37393b;
@@ -114,13 +128,13 @@ body {
 .thumb {
   position: relative;
   margin: 0 auto 12px;
-  width: 122px;
+  width: calc(100% - 28px);  /* 縮圖隨側欄寬度縮放 */
   cursor: pointer;
   text-align: center;
 }
 .thumb .frame {
   position: relative;
-  display: inline-block;
+  display: block;
   border: 2px solid transparent;
   border-radius: 4px;
   background: #fff;
@@ -129,6 +143,7 @@ body {
 }
 .thumb.current .frame { border-color: var(--accent); }
 .thumb canvas, .thumb .blank-thumb { border-radius: 2px; }
+.thumb canvas { width: 100% !important; height: auto !important; }
 .thumb .blank-thumb { display: inline-block; background: #fff; }
 .thumb .pno { font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.2; }
 .thumb input[type=checkbox] {
@@ -143,15 +158,20 @@ body {
 /* ---------- 檢視區 ---------- */
 #viewer {
   flex: 1;
+  min-width: 0;
   overflow: auto;
   position: relative;
-  display: flex;
 }
 
 #emptyState {
-  margin: auto;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
+  padding: 16px;
 }
+#emptyState[hidden] { display: none; }
 .drop-card {
   border: 2px dashed #7a7f83;
   border-radius: 14px;
@@ -167,7 +187,8 @@ body {
 .drop-title { font-size: 16px; margin-bottom: 6px; }
 .drop-sub { font-size: 12px; color: var(--text-dim); }
 
-#pageWrap { margin: auto; padding: 24px; }
+/* 用 max-content + margin 0 auto 置中：頁面比視窗寬時可完整捲動，不會被切掉左半邊 */
+#pageWrap { width: max-content; margin: 0 auto; padding: 24px; }
 #pageStack {
   position: relative;
   box-shadow: 0 2px 12px rgba(0,0,0,.55);
@@ -244,3 +265,4 @@ body {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #6b6f73; border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
+#toolbar button#btnSidebar.active { background: #45494d; }

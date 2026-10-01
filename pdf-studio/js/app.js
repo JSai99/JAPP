@@ -28,6 +28,7 @@ const state = {
                     //   w/h 只有 blank 頁使用（PDF pt）；rot 為使用者加轉的角度
   cur: 0,
   zoom: 1.25,
+  fit: true,        // 自動適寬：視窗/側欄大小變動時頁面跟著縮放；手動縮放後關閉
   tool: 'select',
   selectedAnnot: null,   // { pageUid, annotId }
   search: { query: '', hits: [], cur: -1 },  // hits: {pageIdx, rects:[{x,y,w,h}]}
@@ -84,6 +85,7 @@ async function openFile(file) {
     }
     state.pages = pages;
     state.cur = 0;
+    state.fit = true;
     state.undoStack = [];
     state.dirty = false;
     state.selectedAnnot = null;
@@ -299,6 +301,13 @@ async function renderMain() {
   const pg = state.pages[state.cur];
   const size = await displaySize(pg);
   if (token !== renderToken) return;
+
+  if (state.fit) {
+    const avail = els.viewer.clientWidth - 48;   // 扣掉 #pageWrap 左右 padding
+    state.zoom = Math.min(4, Math.max(0.4, avail / size.w));
+    els.zoomLabel.textContent = Math.round(state.zoom * 100) + '%';
+    // 選取中的註記與縮放後的座標一致：註記層在下方 renderAnnotLayer 重畫
+  }
 
   const dpr = window.devicePixelRatio || 1;
   const cssW = Math.round(size.w * state.zoom);
@@ -1077,18 +1086,91 @@ function setTool(tool) {
 }
 
 function setZoom(z) {
+  state.fit = false;   // 手動縮放 → 關閉自動適寬
   state.zoom = Math.min(4, Math.max(0.4, z));
   els.zoomLabel.textContent = Math.round(state.zoom * 100) + '%';
   renderMain();
 }
 
-async function fitWidth() {
-  const pg = state.pages[state.cur];
-  if (!pg) return;
-  const size = await displaySize(pg);
-  const avail = els.viewer.clientWidth - 64;
-  setZoom(avail / size.w);
+function fitWidth() {
+  state.fit = true;    // 開啟自動適寬，之後視窗變動會持續跟隨
+  renderMain();
 }
+
+/* 視窗或側欄大小變動 → 適寬模式下重新排版（debounce 避免拖拉時狂重繪） */
+let relayoutTimer = null;
+function scheduleRelayout() {
+  if (!state.fit || !state.pages.length) return;
+  if (document.activeElement && document.activeElement.isContentEditable) return;  // 正在打字時不重繪
+  clearTimeout(relayoutTimer);
+  relayoutTimer = setTimeout(renderMain, 120);
+}
+window.addEventListener('resize', scheduleRelayout);
+
+/* ============================================================
+ * 側欄：拖拉調整寬度、雙擊或工具列按鈕收合；寬度記在瀏覽器
+ * ============================================================ */
+const SIDEBAR_MIN = 90, SIDEBAR_MAX = 420, SIDEBAR_DEFAULT = 158;
+const workspace = $('workspace');
+const resizer = $('sidebarResizer');
+let sidebarW = SIDEBAR_DEFAULT;
+
+function loadPref(key, fallback) {
+  try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
+  catch (e) { return fallback; }
+}
+function savePref(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* 私密模式等情況 */ }
+}
+
+function applySidebar(width, collapsed) {
+  sidebarW = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, width));
+  workspace.style.setProperty('--sidebar-w', sidebarW + 'px');
+  workspace.classList.toggle('sidebar-collapsed', collapsed);
+  $('btnSidebar').classList.toggle('active', !collapsed);
+}
+function toggleSidebar() {
+  const collapsed = !workspace.classList.contains('sidebar-collapsed');
+  applySidebar(sidebarW, collapsed);
+  savePref('japp.sidebarCollapsed', collapsed);
+  scheduleRelayout();
+}
+
+// 窄螢幕（筆電小視窗）預設收合，除非使用者曾手動設定過
+applySidebar(loadPref('japp.sidebarW', SIDEBAR_DEFAULT),
+             loadPref('japp.sidebarCollapsed', window.innerWidth < 700));
+
+resizer.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  resizer.setPointerCapture(e.pointerId);
+  const startX = e.clientX;
+  const wasCollapsed = workspace.classList.contains('sidebar-collapsed');
+  const startW = wasCollapsed ? 0 : sidebarW;
+  resizer.classList.add('dragging');
+  document.body.classList.add('resizing');
+
+  const onMove = (ev) => {
+    const w = startW + (ev.clientX - startX);
+    if (w < SIDEBAR_MIN / 2) applySidebar(sidebarW, true);       // 拖到很窄 → 直接收合
+    else applySidebar(w, false);
+  };
+  const onUp = () => {
+    resizer.removeEventListener('pointermove', onMove);
+    resizer.removeEventListener('pointerup', onUp);
+    resizer.removeEventListener('pointercancel', onUp);
+    resizer.classList.remove('dragging');
+    document.body.classList.remove('resizing');
+    // 拖到收合時，拖動途中經過的窄寬度不該覆蓋「上次寬度」，還原成拖之前的值
+    if (workspace.classList.contains('sidebar-collapsed') && !wasCollapsed) applySidebar(startW, true);
+    savePref('japp.sidebarW', sidebarW);
+    savePref('japp.sidebarCollapsed', workspace.classList.contains('sidebar-collapsed'));
+    scheduleRelayout();
+  };
+  resizer.addEventListener('pointermove', onMove);
+  resizer.addEventListener('pointerup', onUp);
+  resizer.addEventListener('pointercancel', onUp);
+});
+resizer.addEventListener('dblclick', toggleSidebar);
 
 function updateToolbar() {
   const has = state.pages.length > 0;
@@ -1137,6 +1219,7 @@ $('btnDelete').addEventListener('click', deletePages);
 $('btnZoomIn').addEventListener('click', () => setZoom(state.zoom + 0.25));
 $('btnZoomOut').addEventListener('click', () => setZoom(state.zoom - 0.25));
 $('btnFit').addEventListener('click', fitWidth);
+$('btnSidebar').addEventListener('click', toggleSidebar);
 $('btnPrev').addEventListener('click', () => gotoPage(state.cur - 1));
 $('btnNext').addEventListener('click', () => gotoPage(state.cur + 1));
 document.querySelectorAll('#toolGroup .tool').forEach(b =>
