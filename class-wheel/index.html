@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JAPP 課堂轉盤</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="mode-pick">
+
+<header id="toolbar">
+  <div class="tb-group tb-brand">
+    <a class="brand-link" href="../index.html" title="回到 JAPP 工具箱"><span class="logo">JAPP</span><span class="logo-sub">課堂轉盤</span></a>
+  </div>
+
+  <div class="tb-group">
+    <label class="tb-inline" title="切換班級">🏫
+      <select id="classSel"></select>
+    </label>
+    <button id="btnRoster" title="新增班級、貼上或匯入名單、備份">📋 名單管理</button>
+  </div>
+
+  <div class="tb-group mode-tabs" role="tablist">
+    <button class="mode-tab active" data-mode="pick" role="tab">🎯 抽人</button>
+    <button class="mode-tab" data-mode="group" role="tab">👥 分組</button>
+  </div>
+
+  <div class="tb-group tb-right">
+    <button id="btnSound" title="音效開關（M）">🔊</button>
+    <input type="range" id="volume" min="0" max="100" value="70" title="音量">
+    <button id="btnSidebar" title="收合／展開側欄，讓舞台更大">☰</button>
+    <button id="btnFull" title="全螢幕（F）">⛶ 全螢幕</button>
+  </div>
+</header>
+
+<main id="main">
+  <!-- ========== 舞台 ========== -->
+  <section id="stage">
+    <!-- 抽人：轉盤 -->
+    <div id="wheelStage" class="stage-view">
+      <div id="wheelBox">
+        <canvas id="wheel"></canvas>
+        <div id="pointer"></div>
+        <button id="hub" title="開始轉（空白鍵）">GO</button>
+      </div>
+    </div>
+
+    <!-- 抽人：拉霸 -->
+    <div id="slotStage" class="stage-view hidden">
+      <div id="slotMachine">
+        <div class="slot-lights top"></div>
+        <div class="slot-title">✨ 幸 運 拉 霸 ✨</div>
+        <div id="slotWindow">
+          <div id="slotStrip"></div>
+          <div class="slot-mask"></div>
+          <div class="slot-line"></div>
+        </div>
+        <div class="slot-lights bottom"></div>
+        <button id="lever" title="拉下拉桿（空白鍵）"><span class="lever-stick"></span><span class="lever-ball"></span></button>
+      </div>
+    </div>
+
+    <!-- 分組 -->
+    <div id="groupStage" class="stage-view hidden">
+      <div id="groupDeck"><span id="deckName"></span></div>
+      <div id="groupGrid"></div>
+      <div id="groupEmpty" class="stage-hint">設定好右邊的分組方式，按「🎲 開始分組」</div>
+    </div>
+
+    <div id="emptyHint" class="stage-hint hidden"></div>
+  </section>
+
+  <!-- ========== 側欄 ========== -->
+  <aside id="sidebar">
+    <!-- 抽人設定 -->
+    <div class="side-pick">
+      <button id="btnSpin" class="big-btn">🎯 開始抽！</button>
+      <div class="side-section">
+        <div class="side-title">儀式</div>
+        <div class="seg" id="ritualSeg">
+          <button data-v="wheel" class="active">🎡 轉盤</button>
+          <button data-v="slot">🎰 拉霸</button>
+        </div>
+      </div>
+      <div class="side-section">
+        <div class="side-title">懸疑時間</div>
+        <div class="seg" id="durSeg">
+          <button data-v="short">短</button>
+          <button data-v="normal" class="active">中</button>
+          <button data-v="long">長</button>
+        </div>
+      </div>
+      <div class="side-section">
+        <div class="side-title">
+          <span>名單 <small id="poolCount"></small></span>
+          <button id="btnRestore" class="link-btn" title="把抽過的人全部放回">↺ 全部放回</button>
+        </div>
+        <div id="pickChips" class="chips"></div>
+        <p class="side-note">點名字：標記／取消<b>缺席</b>。已抽過（劃線）的點一下可放回。</p>
+      </div>
+      <div class="side-section">
+        <div class="side-title"><span>本堂紀錄</span><button id="btnClearHist" class="link-btn">清除</button></div>
+        <ol id="history"></ol>
+      </div>
+    </div>
+
+    <!-- 分組設定 -->
+    <div class="side-group">
+      <button id="btnGroup" class="big-btn">🎲 開始分組</button>
+      <div class="side-section">
+        <div class="side-title">分組方式</div>
+        <label class="radio-row"><input type="radio" name="gmode" value="count" checked> 分成 <input type="number" id="groupN" min="2" max="40" value="5"> 組</label>
+        <label class="radio-row"><input type="radio" name="gmode" value="size"> 每組最多 <input type="number" id="groupM" min="2" max="40" value="4"> 人</label>
+        <p id="groupPreview" class="side-note strong"></p>
+      </div>
+      <div class="side-section">
+        <div class="side-title">平均分配依據</div>
+        <select id="balanceSel">
+          <option value="none">不限（完全隨機）</option>
+          <option value="gender">性別平均</option>
+          <option value="dept">系級平均</option>
+          <option value="both">性別＋系級都平均</option>
+        </select>
+        <p id="balanceNote" class="side-note"></p>
+      </div>
+      <div class="side-section">
+        <label class="check-row"><input type="checkbox" id="leaderChk" checked> 每組抽一位組長 👑</label>
+      </div>
+      <div class="side-section">
+        <div class="side-title">揭曉速度</div>
+        <div class="seg" id="speedSeg">
+          <button data-v="slow">慢</button>
+          <button data-v="normal" class="active">中</button>
+          <button data-v="fast">快</button>
+          <button data-v="instant">立即</button>
+        </div>
+      </div>
+      <div class="side-section">
+        <div class="side-title"><span>參與名單 <small id="groupCount"></small></span></div>
+        <div id="groupChips" class="chips"></div>
+        <p class="side-note">點名字可標記<b>缺席</b>（今天有效，不參與分組）。</p>
+      </div>
+      <div class="side-section export-row">
+        <button id="btnCopyGroups" disabled>📋 複製結果</button>
+        <button id="btnCsvGroups" disabled>⬇ 下載 CSV</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- 抽中結果 -->
+<div id="resultOverlay" class="overlay hidden">
+  <div class="result-card">
+    <div class="result-label">🎤 就是你了！</div>
+    <div id="resultName" class="result-name"></div>
+    <div id="resultMeta" class="result-meta"></div>
+    <div class="result-actions">
+      <button id="btnRemoveWinner" class="primary">✓ 移除（這輪不再抽到）</button>
+      <button id="btnKeepWinner">↺ 保留在名單中</button>
+    </div>
+    <div class="result-keys">快捷鍵：R 移除・Enter／Esc 保留</div>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+<div id="toast" class="toast hidden"></div>
+
+<!-- 名單管理 -->
+<dialog id="rosterDlg">
+  <div class="dlg-head">
+    <h2>📋 名單管理</h2>
+    <button class="dlg-x" data-close>✕</button>
+  </div>
+  <div class="dlg-body">
+    <div class="class-list">
+      <div id="classList"></div>
+      <button id="btnNewClass">＋ 新增班級</button>
+    </div>
+    <div class="class-edit">
+      <label class="field">班級名稱
+        <input type="text" id="className" placeholder="例如：管理學 A 班">
+      </label>
+      <label class="field">名單（一行一位）
+        <textarea id="rosterText" spellcheck="false" placeholder="姓名&#9;性別&#9;系級&#10;王小明&#9;男&#9;企管一&#10;林小美&#9;女&#9;國貿二"></textarea>
+      </label>
+      <p class="side-note">
+        直接從 <b>Excel 複製欄位貼上</b>就好：可以只有姓名，也可以是「姓名、性別、系級」，用 Tab 或逗號隔開；有學號欄也沒關係。
+        性別寫「男／女」或「M／F」。
+      </p>
+      <p id="rosterStats" class="side-note strong"></p>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <div class="foot-left">
+      <button id="btnImport" title="匯入 .json 備份，或 Excel 另存的 .csv／.txt 名單">⬆ 匯入檔案</button>
+      <button id="btnExport" title="把所有班級名單存成一個備份檔，帶到教室電腦匯入">⬇ 匯出備份</button>
+      <input type="file" id="fileInput" accept=".json,.csv,.txt,.tsv" hidden>
+    </div>
+    <div class="foot-right">
+      <button id="btnDelClass" class="danger">🗑 刪除此班</button>
+      <button id="btnSaveClass" class="primary">💾 儲存</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="js/sound.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
