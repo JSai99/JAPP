@@ -10,6 +10,7 @@
 | 工具 | 說明 | 入口 |
 |---|---|---|
 | 📄 [PDF 工作室](pdf-studio/) | PDF 閱讀、註記（文字/螢光筆/修正帶）、取代原文、關鍵字搜尋、頁面增刪旋轉排序、多檔合併、另存新檔 | [`pdf-studio/index.html`](pdf-studio/index.html) |
+| 🎡 [課堂轉盤](class-wheel/) | 隨機抽人（轉盤／拉霸）、依性別或系級平均分組、抽組長；多班名單、音效彩帶，適合投影 | [`class-wheel/index.html`](class-wheel/index.html) |
 
 ## 使用方式
 
@@ -26,6 +27,7 @@ JAPP/
 ├── index.html        # 工具入口頁
 ├── shared/vendor/    # 共用開源函式庫（pdf.js、pdf-lib）
 ├── pdf-studio/       # 📄 PDF 工作室（含自己的 README）
+├── class-wheel/      # 🎡 課堂轉盤（含自己的 README）
 └── （未來的小工具，一個資料夾一個工具）
 ```
 
