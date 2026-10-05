@@ -107,12 +107,12 @@ function loadDb() {
     if (d && Array.isArray(d.classes)) {
       d.settings = { ...DEFAULT_SETTINGS, ...(d.settings || {}) };
       d.state = d.state || {};
+      d.classes.forEach(repairClass);
       return d;
     }
   } catch (e) { /* 壞掉就重來 */ }
   return freshDb();
 }
-let db = loadDb();
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
   catch (e) { toast('⚠️ 瀏覽器無法儲存（可能是無痕模式），關掉視窗後名單會消失'); }
@@ -142,41 +142,110 @@ function normGender(s) {
 }
 function splitLine(l) { return l.split(/\t|,|，|、|;|；/).map(x => x.trim()); }
 
+const CJK = '㐀-鿿豈-﫿';
+const ID_RE = /^[A-Za-z]{0,2}\d+[A-Za-z0-9]*$/;                 // 學號、座號
+// 系級／班級長相：「資四A」「財精二B」「社延B」「企管一」「資管碩一」
+const DEPT_RE = new RegExp(`^[${CJK}]{1,6}(?:[一二三四五六七八九十]|延|碩[一二三]?|博[一二三四]?)?[A-Za-z甲乙丙丁戊]$|^[${CJK}]{1,5}(?:[一二三四五六七八九]|延|碩[一二三]?|博[一二三四]?)$`);
+const isDeptLike = v => DEPT_RE.test(v);
+
+// 「辛　薇」這種為了對齊而補空白的姓名，把中文字之間的空白拿掉
+function cleanName(v) {
+  return String(v || '').trim().replace(new RegExp(`([${CJK}])[\\s\\u3000]+(?=[${CJK}])`, 'g'), '$1');
+}
+
+// 沒有 Tab／逗號的一行改用空白切；切太多段時，把相鄰的單一中文字併回去（「辛　薇」）
+function splitBySpace(line, want) {
+  const t = line.split(/[\s　]+/).filter(Boolean);
+  const one = new RegExp(`^[${CJK}]$`);
+  for (let i = t.length - 2; i >= 0 && t.length > want; i--) {
+    if (one.test(t[i]) && one.test(t[i + 1])) t.splice(i, 2, t[i] + t[i + 1]);
+  }
+  return t;
+}
+
 function parseRoster(text) {
   const lines = String(text).replace(/^﻿/, '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (!lines.length) return [];
-  let map = null;
+
+  // 有標題列（姓名／性別／系級…）就照標題對應欄位
   const head = splitLine(lines[0]);
   const ni = head.findIndex(h => /姓名|名字|^name$|^名$/i.test(h));
   if (ni >= 0) {
-    map = {
-      name: ni,
-      gender: head.findIndex(h => /性別|gender|sex/i.test(h)),
-      dept: head.findIndex((h, i) => i !== ni && /系級|系所|系別|科系|年級|班級|系|dept|department|grade|class|major/i.test(h)),
+    const gi = head.findIndex(h => /性別|gender|sex/i.test(h));
+    const di = head.findIndex((h, i) => i !== ni && /系級|系所|系別|科系|年級|班級|系|dept|department|grade|class|major/i.test(h));
+    return lines.slice(1).map(line => {
+      const f = splitLine(line);
+      return { id: uid(), name: cleanName(f[ni]), gender: gi >= 0 ? normGender(f[gi]) : '', dept: di >= 0 ? (f[di] || '') : '' };
+    }).filter(s => s.name);
+  }
+
+  // 沒有標題列：先切欄，再「看內容」判斷哪一欄是姓名、性別、系級、學號
+  let rows = lines.map(splitLine);
+  const counts = {};
+  rows.forEach(r => { if (r.length > 1) counts[r.length] = (counts[r.length] || 0) + 1; });
+  let k = +Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || 1;
+  if (k === 1) {
+    // 整份都沒有分隔符號：看看是不是用空白隔開的（例如「資四A 黃渝尹」）
+    const sp = lines.map(l => splitBySpace(l, 2));
+    const multi = sp.filter(t => t.length >= 2 && t.some(isDeptLike)).length;
+    if (multi >= Math.max(1, sp.length * 0.6)) { rows = lines.map(l => splitBySpace(l, 2)); k = 2; }
+  } else {
+    rows = rows.map((r, i) => (r.length === 1 && /[\s　]/.test(r[0]) ? splitBySpace(lines[i], k) : r));
+  }
+
+  const cols = Math.max(...rows.map(r => r.length));
+  const col = j => rows.map(r => (r[j] || '').trim());
+  const ratio = (arr, fn) => { const v = arr.filter(Boolean); return v.length ? v.filter(fn).length / v.length : 0; };
+  const info = [...Array(cols).keys()].map(j => {
+    const v = col(j), filled = v.filter(Boolean);
+    return {
+      j,
+      fill: filled.length / rows.length,
+      id: ratio(v, x => ID_RE.test(x)),
+      gender: ratio(v, x => !!normGender(x)),
+      dept: ratio(v, isDeptLike),
+      uniq: filled.length ? new Set(filled).size / filled.length : 0,
     };
-    lines.shift();
-  }
-  const out = [];
-  for (const line of lines) {
-    const f = splitLine(line);
-    let name, gender = '', dept = '';
-    if (map) {
-      name = f[map.name] || '';
-      if (map.gender >= 0) gender = normGender(f[map.gender]);
-      if (map.dept >= 0) dept = f[map.dept] || '';
-    } else {
-      const cells = f.filter(Boolean);
-      // 開頭若是學號或座號，跳過
-      if (cells.length > 1 && /^[A-Za-z]{0,2}\d+[A-Za-z0-9]*$/.test(cells[0])) cells.shift();
-      name = cells[0] || '';
-      const rest = cells.slice(1);
-      const gi = rest.findIndex(x => normGender(x));
-      if (gi >= 0) gender = normGender(rest[gi]);
-      dept = rest.filter((_, i) => i !== gi)[0] || '';
+  });
+  const genderCol = info.filter(c => c.gender > 0.6).sort((a, b) => b.gender - a.gender)[0];
+  const cand = info.filter(c => c !== genderCol && c.id < 0.6 && c.fill > 0);
+  // 姓名欄：最不重複、最不像系級
+  const nameCol = cand.slice().sort((a, b) => (b.uniq - b.dept + b.fill) - (a.uniq - a.dept + a.fill))[0];
+  if (!nameCol) return [];
+  // 系級欄：剩下的欄位中最像系級、重複最多的
+  const deptCol = cand.filter(c => c !== nameCol).sort((a, b) => (b.dept + (1 - b.uniq)) - (a.dept + (1 - a.uniq)))[0];
+
+  return rows.map(r => ({
+    id: uid(),
+    name: cleanName(r[nameCol.j]),
+    gender: genderCol ? normGender(r[genderCol.j]) : '',
+    dept: deptCol ? (r[deptCol.j] || '').trim() : '',
+  })).filter(s => s.name);
+}
+
+// 修正舊版解析錯的名單：整班「姓名」都像系級、「系級」反而像姓名時，兩欄對調
+function repairClass(cls) {
+  const list = cls.students || [];
+  let changed = false;
+  const both = list.filter(s => s.name && s.dept);
+  if (both.length >= 2) {
+    const nameLike = both.filter(s => isDeptLike(s.name)).length / both.length;
+    const deptLike = both.filter(s => isDeptLike(s.dept)).length / both.length;
+    if (nameLike >= 0.6 && deptLike <= 0.2) {
+      both.forEach(s => { [s.name, s.dept] = [s.dept, s.name]; });
+      changed = true;
     }
-    if (name) out.push({ id: uid(), name, gender, dept });
   }
-  return out;
+  list.forEach(s => {
+    // 「資四A 黃渝尹」整串被當成姓名
+    if (!s.dept) {
+      const t = splitBySpace(s.name, 2);
+      if (t.length === 2 && isDeptLike(t[0]) && !isDeptLike(t[1])) { s.dept = t[0]; s.name = t[1]; changed = true; }
+    }
+    const c = cleanName(s.name);
+    if (c !== s.name) { s.name = c; changed = true; }
+  });
+  return changed;
 }
 function rosterToText(students) {
   if (!students.length) return '';
@@ -204,6 +273,9 @@ function rosterStats(list) {
   if (dup.length) t += `｜⚠️ 重複姓名：${dup.join('、')}`;
   return t;
 }
+
+// 解析相關的常數都定義好之後才載入資料（避免 TDZ）
+let db = loadDb();
 
 /* ================= 全域狀態 ================= */
 let busy = false;           // 動畫進行中
