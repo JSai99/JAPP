@@ -78,6 +78,10 @@ button:disabled { opacity: .45; cursor: default; }
 .banner { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; margin-top: 14px; font-size: 15px; }
 .banner.warn { background: #fff4e5; color: #7a3d00; }
 @media (prefers-color-scheme: dark) { .banner.warn { background: #3a2a14; color: #ffd29a; } }
+.gchip { display: inline-block; color: #fff; font-weight: 800; padding: 7px 14px; border-radius: 10px; font-size: 17px; letter-spacing: .5px; line-height: 1.35; text-shadow: 0 1px 1px rgba(0,0,0,.12); }
+.gchip.sm { font-size: 14px; padding: 3px 10px; border-radius: 8px; margin-right: 6px; }
+.item .gchip { font-size: 16px; }
+.item.done .gchip { opacity: .55; }
 .hidden { display: none !important; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
          background: var(--ok); color: #fff; padding: 10px 18px; border-radius: 99px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
@@ -146,6 +150,7 @@ button:disabled { opacity: .45; cursor: default; }
 
 <script src="../shared/vendor/supabase.js"></script>
 <script src="config.js"></script>
+<script src="colors.js"></script>
 <script>
 (() => {
   const db = supabase.createClient(PEER_CONFIG.supabaseUrl, PEER_CONFIG.supabaseKey, { auth: { persistSession: false } });
@@ -211,7 +216,7 @@ button:disabled { opacity: .45; cursor: default; }
   // ── 2. 選名字 ──
   function renderNames() {
     $('title-name').textContent = S.info.activity.title;
-    $('group-name').textContent = S.info.group.name;
+    $('group-name').innerHTML = groupChip(S.info.group.name, S.info.group.position, 'sm');
     $('err-name').textContent = '';
     $('names').innerHTML = S.info.members.map((m) =>
       `<button data-id="${m.id}" class="${m.claimed ? 'taken' : ''}">${esc(m.name)}${m.claimed ? '<br><small>已有人選</small>' : ''}</button>`).join('');
@@ -248,7 +253,7 @@ button:disabled { opacity: .45; cursor: default; }
   function renderHome() {
     const a = S.info.activity;
     $('title-home').textContent = a.title;
-    $('who').textContent = `${S.info.group.name}・${S.me.name}`;
+    $('who').innerHTML = `${groupChip(S.info.group.name, S.info.group.position, 'sm')} ${esc(S.me.name)}`;
     $('closed').classList.toggle('hidden', a.is_open);
     const intraOn = a.intra_enabled && S.info.criteria.some((c) => c.kind === 'intra') && targets('intra').length > 0;
     $('tabs').classList.toggle('hidden', !intraOn);
@@ -268,7 +273,7 @@ button:disabled { opacity: .45; cursor: default; }
       const d = done.has(t.id);
       const draft = !d && store.get(`draft:${S.code}:${S.me.id}:${t.id}`);
       return `<button class="item ${d ? 'done' : ''}" data-id="${t.id}" ${d ? 'disabled' : ''}>
-        <span>${esc(t.name)}</span><span class="tag">${d ? '已送出 ✓' : draft ? '草稿' : '去評分'}</span></button>`;
+        ${S.tab === 'inter' ? groupChip(t.name, t.position) : `<span>${esc(t.name)}</span>`}<span class="tag">${d ? '已送出 ✓' : draft ? '草稿' : '去評分'}</span></button>`;
     }).join('');
     $('list').querySelectorAll('.item:not(.done)').forEach((b) => b.onclick = () => openForm(S.tab, b.dataset.id));
     show('home');
@@ -290,7 +295,7 @@ button:disabled { opacity: .45; cursor: default; }
       return `<div class="pickcard ${d ? 'done' : ''}" data-c="${c.id}">
         <div class="top"><b>${esc(c.label)}</b><span class="ptag ${d ? 'ok' : ''}">${d ? '已投 ✓' : '選一個'}</span></div>
         ${c.description ? `<div class="sub">${esc(c.description)}</div>` : ''}
-        ${d ? '' : `<div class="picks">${opts.map((o) => `<button data-t="${o.id}">${esc(o.name)}</button>`).join('')}</div>`}
+        ${d ? '' : `<div class="picks">${opts.map((o) => `<button data-t="${o.id}" ${S.tab === 'inter' ? `style="background:${groupColor(o.position)};color:#fff"` : ''}>${esc(o.name)}</button>`).join('')}</div>`}
       </div>`;
     }).join('');
     $('picks').querySelectorAll('.pickcard:not(.done) .picks button').forEach((b) => b.onclick = async () => {
@@ -313,7 +318,7 @@ button:disabled { opacity: .45; cursor: default; }
     S.answers = store.get(key) || {};
     const max = S.info.activity.scale_max;
     $('form-kind').textContent = kind === 'inter' ? '評其他組' : '評組員';
-    $('form-target').textContent = t.name;
+    $('form-target').innerHTML = kind === 'inter' ? groupChip(t.name, t.position) : esc(t.name);
     $('err-form').textContent = '';
     $('form-crit').innerHTML = crits(kind).map((c) => `
       <div class="crit" data-id="${c.id}">

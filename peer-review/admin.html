@@ -36,6 +36,8 @@ button:disabled { opacity: .45; cursor: default; }
 .row + .row { margin-top: 10px; }
 .err { color: var(--err); font-size: 14px; margin-top: 8px; white-space: pre-line; }
 .okmsg { color: var(--ok); font-size: 14px; margin-top: 8px; }
+.gchip { display: inline-block; color: #fff; font-weight: 800; padding: 5px 12px; border-radius: 9px; font-size: 15px; letter-spacing: .5px; line-height: 1.35; white-space: nowrap; }
+.gchip.sm { font-size: 13px; padding: 2px 9px; border-radius: 7px; }
 .hidden { display: none !important; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
 .tabs button { background: var(--card); color: var(--text); border: 1px solid var(--line); }
@@ -174,7 +176,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <div id="t-roster" class="hidden">
       <div class="card">
         <h2>匯入名單</h2>
-        <p class="sub">從 Excel 直接複製貼上，每行一人：<b>組別、姓名</b>（可再加學號）。組別可以寫「1」或「第1組」。匯入會<b>取代</b>目前的名單與代碼。</p>
+        <p class="sub">直接上傳 <b>TronClass 匯出的分組 Excel</b>，或從 Excel 複製貼上（每行：組別、姓名、學號）。組名若是成員名字串，會自動改成「第 N 組」。匯入會<b>取代</b>目前的名單與代碼。</p>
+        <div class="row" style="margin:6px 0 10px"><label class="ghost" style="display:inline-block;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--accent);font-weight:600">📄 上傳 Excel 名單<input type="file" id="roster-file" accept=".xlsx,.csv,.txt" hidden></label><span class="sub">或貼在下面</span></div>
         <textarea id="roster-text" placeholder="1&#9;王小明&#9;B11001001&#10;1&#9;李小華&#10;2&#9;陳大同"></textarea>
         <div class="row" style="margin-top:10px"><button id="btn-import">預覽</button><span class="sub" id="import-preview"></span></div>
         <div class="row hidden" id="import-confirm"><button id="btn-import-go">確定匯入</button></div>
@@ -247,6 +250,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 <script src="../shared/vendor/supabase.js"></script>
 <script src="../shared/vendor/qrcode.js"></script>
 <script src="config.js"></script>
+<script src="colors.js"></script>
+<script src="../shared/vendor/fflate.min.js"></script>
 <script>
 (() => {
   const db = supabase.createClient(PEER_CONFIG.supabaseUrl, PEER_CONFIG.supabaseKey);
@@ -443,30 +448,69 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   function newCode() { const a = new Uint8Array(6); crypto.getRandomValues(a); return Array.from(a, (b) => CODE_CHARS[b % CODE_CHARS.length]).join(''); }
   function groupName(raw) { const s = raw.trim(); return /^\d+$/.test(s) ? `第 ${+s} 組` : s; }
   let parsed = null;
-  function parseRoster(text) {
-    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const out = new Map(); const bad = [];
-    lines.forEach((line, i) => {
-      let cols = line.split('\t');
-      if (cols.length < 2) cols = line.split(/[,，]/);
-      if (cols.length < 2) cols = line.split(/\s+/);
-      cols = cols.map((c) => c.trim());
-      if (i === 0 && /組/.test(cols[0]) && /名/.test(cols[1] || '')) return; // 標題列
-      if (cols.length < 2 || !cols[0] || !cols[1]) { bad.push(i + 1); return; }
-      const g = groupName(cols[0]);
-      if (!out.has(g)) out.set(g, []);
-      out.get(g).push({ name: cols[1], student_no: cols[2] || '' });
+  // 支援兩種格式：
+  // (1) 簡單表：組別、姓名、學號（可省略）
+  // (2) TronClass 專題分組匯出：組名列（帳號欄放組名、成員數欄放人數）後面接「學號、姓名」
+  function parseRoster(rows) {
+    const groups = []; const bad = []; let cur = null;
+    rows.forEach((raw, i) => {
+      const c = raw.map((x) => String(x ?? '').trim());
+      if (!c.some(Boolean)) return;
+      if (c.includes('姓名')) return; // 標題列
+      if (c[0] && !c[1] && /^\d+$/.test(c[2] || '')) { // TronClass 組名列
+        cur = { name: c[0].includes('、') ? `第 ${groups.length + 1} 組` : c[0], members: [] };
+        groups.push(cur); return;
+      }
+      if (cur && c[1]) { cur.members.push({ name: c[1], student_no: c[0] }); return; }
+      if (c[0] && c[1] && !/^\d{6,}$/.test(c[0])) {
+        const gname = groupName(c[0]);
+        let g = groups.find((x) => x.name === gname);
+        if (!g) { g = { name: gname, members: [] }; groups.push(g); }
+        g.members.push({ name: c[1], student_no: c[2] || '' }); return;
+      }
+      bad.push(i + 1);
     });
-    return { groups: [...out.entries()].map(([name, members]) => ({ name, members })), bad };
+    return { groups: groups.filter((g) => g.members.length), bad };
   }
+  const textRows = (text) => text.split(/\r?\n/).map((l) => (l.includes('\t') ? l.split('\t') : l.split(/[,，]/)));
+  // 讀 .xlsx：解壓後讀第一張工作表（不需要大型試算表函式庫）
+  async function readXlsx(file) {
+    const files = fflate.unzipSync(new Uint8Array(await file.arrayBuffer()));
+    const xml = (path) => files[path] && new DOMParser().parseFromString(new TextDecoder().decode(files[path]), 'application/xml');
+    const shared = [...(xml('xl/sharedStrings.xml')?.getElementsByTagName('si') || [])].map((si) => [...si.getElementsByTagName('t')].map((t) => t.textContent).join(''));
+    const sheetPath = Object.keys(files).filter((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort()[0];
+    const doc = xml(sheetPath); if (!doc) throw new Error('讀不到工作表');
+    const colIdx = (ref) => { let n = 0; for (const ch of ref.replace(/\d+/g, '')) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+    return [...doc.getElementsByTagName('row')].map((row) => {
+      const out = [];
+      for (const cell of row.getElementsByTagName('c')) {
+        const t = cell.getAttribute('t'), v = cell.getElementsByTagName('v')[0]?.textContent ?? '';
+        out[colIdx(cell.getAttribute('r'))] = t === 's' ? shared[+v] : t === 'inlineStr' ? [...cell.getElementsByTagName('t')].map((x) => x.textContent).join('') : v;
+      }
+      return Array.from(out, (x) => x ?? '');
+    });
+  }
+  function showPreview() {
+    const n = parsed.groups.reduce((s, g) => s + g.members.length, 0);
+    $('import-preview').innerHTML = parsed.groups.length
+      ? `${parsed.groups.length} 組、${n} 人：` + parsed.groups.map((g, i) => `${groupChip(g.name, i, 'sm')}<span class="sub">×${g.members.length}</span>`).join(' ') : '';
+    $('err-roster').textContent = parsed.bad.length ? `第 ${parsed.bad.join('、')} 行看不懂，已略過` : (parsed.groups.length ? '' : '沒有讀到名單');
+    $('import-confirm').classList.toggle('hidden', !parsed.groups.length);
+  }
+  $('roster-file').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const rows = /\.xlsx$/i.test(f.name) ? await readXlsx(f) : textRows(await f.text());
+      parsed = parseRoster(rows);
+      $('roster-text').value = rows.map((r) => r.join('\t')).join('\n');
+      showPreview();
+    } catch (err) { $('err-roster').textContent = '讀檔失敗：' + err.message; }
+    e.target.value = '';
+  };
   $('btn-import').onclick = () => {
     $('err-roster').textContent = '';
-    parsed = parseRoster($('roster-text').value);
-    const n = parsed.groups.reduce((s, g) => s + g.members.length, 0);
-    $('import-preview').textContent = parsed.groups.length
-      ? `${parsed.groups.length} 組、${n} 人：` + parsed.groups.map((g) => `${g.name}（${g.members.length}）`).join('、') : '';
-    if (parsed.bad.length) $('err-roster').textContent = `第 ${parsed.bad.join('、')} 行看不懂，請確認是「組別、姓名」兩欄以上`;
-    $('import-confirm').classList.toggle('hidden', !parsed.groups.length);
+    parsed = parseRoster(textRows($('roster-text').value));
+    showPreview();
   };
   $('btn-import-go').onclick = async () => {
     if (!parsed?.groups.length) return;
@@ -488,7 +532,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     } catch (e) { fail(e, 'err-roster'); }
   };
   function renderRoster() {
-    $('groups').innerHTML = A.groups.map((g) => `<div class="grp"><div class="row" style="justify-content:space-between"><b>${esc(g.name)}</b><span class="code">${esc(g.code)}</span></div>
+    $('groups').innerHTML = A.groups.map((g) => `<div class="grp" style="border-top:5px solid ${groupColor(g.position)}"><div class="row" style="justify-content:space-between">${groupChip(g.name, g.position)}<span class="code">${esc(g.code)}</span></div>
       <ul style="margin-top:6px">${g.members.map((m) => `<li><span>${esc(m.name)} <span class="sub">${esc(m.student_no)}</span></span>
         ${m.claim_token ? `<span><span class="pill ok">已綁定</span> <button class="ghost small" data-reset="${m.id}">重設</button></span>` : '<span class="sub">未登入</span>'}</li>`).join('')}</ul></div>`).join('')
       || '<p class="sub">還沒有名單，請在上方貼上。</p>';
@@ -506,7 +550,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     $('stu-url').textContent = url;
     const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
     $('qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
-    $('code-list').innerHTML = A.groups.length ? `<table>${A.groups.map((g) => `<tr><td>${esc(g.name)}</td><td><b style="font-family:monospace;font-size:17px;letter-spacing:2px">${esc(g.code)}</b></td></tr>`).join('')}</table>`
+    $('code-list').innerHTML = A.groups.length ? `<table>${A.groups.map((g) => `<tr><td>${groupChip(g.name, g.position, 'sm')}</td><td><b style="font-family:monospace;font-size:17px;letter-spacing:2px">${esc(g.code)}</b></td></tr>`).join('')}</table>`
       : '<p class="sub">還沒有名單</p>';
   }
   $('btn-copy').onclick = () => navigator.clipboard.writeText(studentUrl()).then(() => { $('btn-copy').textContent = '已複製 ✓'; setTimeout(() => $('btn-copy').textContent = '複製網址', 1500); });
@@ -540,7 +584,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       const recv = A.inter.filter((r) => r.target_group_id === g.id).length;
       const possible = A.members.filter((m) => m.group.id !== g.id).length;
       const pct = (a, b) => (b ? Math.round(a / b * 100) : 0);
-      return `<tr><td><b>${esc(g.name)}</b></td>
+      return `<tr><td>${groupChip(g.name, g.position, 'sm')}</td>
         <td class="num">${interDone}/${n} 人${interAny > interDone ? `<span class="sub">（${interAny - interDone} 人進行中）</span>` : ''}</td><td><div class="bar"><i style="width:${pct(interDone, n)}%"></i></div></td>
         ${intraOn ? `<td class="num">${intraDoneN}/${n} 人</td><td><div class="bar"><i style="width:${pct(intraDoneN, n)}%"></i></div></td>` : ''}
         <td class="num sub">${recv}/${possible}</td></tr>`;
@@ -609,7 +653,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     const inter = computeInter();
     $('r-inter-note').textContent = `各面向為 1~${max} 分的平均；「百分制」= 平均 ÷ ${max} × 100，可直接乘上 40% 計入期中成績。「評分組數」可確認是否每組都有評。`;
     $('r-inter').innerHTML = `<tr><th>組別</th><th class="num">評分份數</th><th class="num">評分組數</th>${interC.map((c) => `<th class="num">${esc(c.label)}</th>`).join('')}<th class="num">平均</th><th class="num">百分制</th>${interPicks.map((c) => `<th class="num">${esc(c.label)}（票）</th>`).join('')}</tr>` +
-      inter.map((x) => `<tr><td><b>${esc(x.g.name)}</b></td><td class="num">${x.n}</td><td class="num">${x.groupsRated}/${A.groups.length - 1}</td>${x.per.map((v) => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num"><b>${fmt(x.avg)}</b></td><td class="num"><b>${fmt(x.score100, 1)}</b></td>${interPicks.map((c) => `<td class="num">${votesFor(c, 'target_group_id', x.g.id)}</td>`).join('')}</tr>`).join('');
+      inter.map((x) => `<tr><td>${groupChip(x.g.name, x.g.position, 'sm')}</td><td class="num">${x.n}</td><td class="num">${x.groupsRated}/${A.groups.length - 1}</td>${x.per.map((v) => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num"><b>${fmt(x.avg)}</b></td><td class="num"><b>${fmt(x.score100, 1)}</b></td>${interPicks.map((c) => `<td class="num">${votesFor(c, 'target_group_id', x.g.id)}</td>`).join('')}</tr>`).join('');
 
     const intraOn = A.act.intra_enabled && A.crit.some((c) => c.kind === 'intra');
     $('r-intra-card').classList.toggle('hidden', !intraOn);
@@ -619,7 +663,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         ? `額外加分 = 「${pc.label}」得票數 ÷ 組內可投票人數 × ${A.act.bonus_max}。全組都推他就加滿 ${A.act.bonus_max} 分。組內評分完全匿名。`
         : `額外加分 = 組員給的平均分 ÷ ${max} × ${A.act.bonus_max}。組內評分完全匿名。`;
       $('r-intra').innerHTML = `<tr><th>組別</th><th>姓名</th><th>學號</th><th class="num">收到評分</th><th class="num">平均</th>${pc ? `<th class="num">${esc(pc.label)}（票）</th>` : ''}<th class="num">額外加分</th></tr>` +
-        intra.map((x) => `<tr><td>${esc(x.m.group.name)}</td><td>${esc(x.m.name)}</td><td class="sub">${esc(x.m.student_no)}</td><td class="num">${x.n}/${x.of}</td><td class="num">${fmt(x.avg)}</td>${pc ? `<td class="num">${x.votes}</td>` : ''}<td class="num"><b>${fmt(x.bonus)}</b></td></tr>`).join('');
+        intra.map((x) => `<tr><td>${groupChip(x.m.group.name, x.m.group.position, 'sm')}</td><td>${esc(x.m.name)}</td><td class="sub">${esc(x.m.student_no)}</td><td class="num">${x.n}/${x.of}</td><td class="num">${fmt(x.avg)}</td>${pc ? `<td class="num">${x.votes}</td>` : ''}<td class="num"><b>${fmt(x.bonus)}</b></td></tr>`).join('');
     }
 
     const flags = computeFlags();
