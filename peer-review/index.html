@@ -8,11 +8,11 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --bg: #f4f5f7; --card: #fff; --line: #dfe2e6; --text: #1f2328; --dim: #67707a;
-  --accent: #3b6fe0; --accent-soft: #e8efff; --ok: #1f8a4c; --ok-soft: #e3f5ea; --warn: #b4540a; --err: #c62828;
+  --accent: #3b6fe0; --accent-soft: #e8efff; --seg: #eceff3; --ok: #1f8a4c; --ok-soft: #e3f5ea; --warn: #b4540a; --err: #c62828;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #1d2023; --card: #2a2e32; --line: #3d4247; --text: #e8eaed; --dim: #9aa0a6;
-          --accent: #6b9bff; --accent-soft: #23314f; --ok: #4cc27f; --ok-soft: #1e3a2a; --warn: #f0a050; --err: #ff6b6b; }
+          --accent: #6b9bff; --accent-soft: #23314f; --seg: #363b41; --ok: #4cc27f; --ok-soft: #1e3a2a; --warn: #f0a050; --err: #ff6b6b; }
 }
 body {
   font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
@@ -56,10 +56,22 @@ button:disabled { opacity: .45; cursor: default; }
 .crit:last-of-type { border-bottom: 0; }
 .crit .q { font-weight: 700; }
 .crit .d { color: var(--dim); font-size: 13px; margin-top: 2px; }
-.scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
-.scale button { background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 10px 0; font-weight: 700; }
-.scale button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-.scale-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); margin-top: 4px; }
+.scale { display: flex; gap: 4px; margin-top: 12px; }
+.scale button { flex: 1; height: 46px; padding: 0; border-radius: 4px; background: var(--seg); color: var(--dim);
+                font-weight: 700; font-size: 15px; transition: background .15s, color .15s; }
+.scale button:first-child { border-radius: 12px 4px 4px 12px; }
+.scale button:last-child { border-radius: 4px 12px 12px 4px; }
+.scale button.fill { background: var(--accent); color: #fff; }
+.scale button.fill.cur { filter: brightness(.88); }
+.scale-read { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--dim); margin-top: 6px; min-height: 1.4em; }
+.scale-read b { color: var(--accent); font-size: 15px; }
+.picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
+.picks button { background: var(--seg); color: var(--text); font-weight: 600; padding: 14px 8px; }
+.pickcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+.pickcard.done { opacity: .7; }
+.ptag { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.ptag.ok { background: var(--ok-soft); color: var(--ok); }
+.anon { font-size: 13px; color: var(--ok); margin-top: 8px; }
 .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .linkbtn { background: none; color: var(--accent); padding: 4px 0; font-size: 14px; font-weight: 600; }
 .progress { font-size: 14px; color: var(--dim); margin-top: 6px; }
@@ -110,7 +122,9 @@ button:disabled { opacity: .45; cursor: default; }
       <button data-tab="inter" class="on">評其他組</button>
       <button data-tab="intra">評組員</button>
     </div>
+    <p class="anon hidden" id="anon-note">🔒 組內互評完全匿名：系統不記錄是誰給的分數，連老師也看不到。</p>
     <p class="progress" id="progress"></p>
+    <div id="picks"></div>
     <div class="list" id="list"></div>
   </section>
 
@@ -153,7 +167,7 @@ button:disabled { opacity: .45; cursor: default; }
     }
     return t;
   }
-  const S = { code: '', info: null, me: null, done: { inter: new Set(), intra: new Set() }, tab: 'inter', target: null, answers: {} };
+  const S = { code: '', info: null, me: null, done: { inter: new Set(), intra: new Set(), pick: new Set() }, tab: 'inter', target: null, answers: {} };
 
   function show(step) {
     for (const s of ['code', 'name', 'home', 'form']) $('step-' + s).classList.toggle('hidden', s !== step);
@@ -212,7 +226,7 @@ button:disabled { opacity: .45; cursor: default; }
     try {
       const r = await rpc('student_claim', { p_code: S.code, p_member: memberId, p_token: deviceToken() });
       S.me = S.info.members.find((m) => m.id === memberId);
-      S.done.inter = new Set(r.inter_done); S.done.intra = new Set(r.intra_done);
+      S.done.inter = new Set(r.inter_done); S.done.intra = new Set(r.intra_done); S.done.pick = new Set(r.pick_done || []);
       store.set('me:' + S.code, memberId);
       renderHome();
     } catch (e) {
@@ -223,7 +237,11 @@ button:disabled { opacity: .45; cursor: default; }
   }
 
   // ── 3. 總覽 ──
-  const crits = (kind) => S.info.criteria.filter((c) => c.kind === kind);
+  const qt = (c) => c.qtype || (c.is_text ? 'text' : 'score');
+  const crits = (kind) => S.info.criteria.filter((c) => c.kind === kind && qt(c) !== 'pick');
+  const pickQs = (kind) => S.info.criteria.filter((c) => c.kind === kind && qt(c) === 'pick');
+  const WORDS5 = ['待加強', '尚可', '普通', '良好', '優秀'];
+  const word = (v) => (S.info.activity.scale_max === 5 ? WORDS5[v - 1] : '');
   function targets(kind) {
     return kind === 'inter' ? S.info.other_groups : S.info.members.filter((m) => m.id !== S.me.id);
   }
@@ -232,15 +250,20 @@ button:disabled { opacity: .45; cursor: default; }
     $('title-home').textContent = a.title;
     $('who').textContent = `${S.info.group.name}・${S.me.name}`;
     $('closed').classList.toggle('hidden', a.is_open);
-    const intraOn = a.intra_enabled && crits('intra').length > 0 && targets('intra').length > 0;
+    const intraOn = a.intra_enabled && S.info.criteria.some((c) => c.kind === 'intra') && targets('intra').length > 0;
     $('tabs').classList.toggle('hidden', !intraOn);
     if (!intraOn) S.tab = 'inter';
     $('tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
-    const list = targets(S.tab), done = S.done[S.tab];
-    const n = list.filter((t) => done.has(t.id)).length;
-    $('progress').textContent = n === list.length && list.length
-      ? `全部完成（${n}/${list.length}），謝謝你！`
-      : `已完成 ${n}/${list.length}${S.tab === 'inter' ? '　每組報告結束後再評' : ''}`;
+    const hasRate = crits(S.tab).length > 0;
+    const list = hasRate ? targets(S.tab) : [], done = S.done[S.tab];
+    const pq = pickQs(S.tab);
+    const total = list.length + pq.length;
+    const n = list.filter((t) => done.has(t.id)).length + pq.filter((c) => S.done.pick.has(c.id)).length;
+    $('anon-note').classList.toggle('hidden', S.tab !== 'intra');
+    $('progress').textContent = n === total && total
+      ? `全部完成（${n}/${total}），謝謝你！`
+      : `已完成 ${n}/${total}${S.tab === 'inter' ? '　每組報告結束後再評' : ''}`;
+    renderPicks(pq);
     $('list').innerHTML = list.map((t) => {
       const d = done.has(t.id);
       const draft = !d && store.get(`draft:${S.code}:${S.me.id}:${t.id}`);
@@ -260,6 +283,27 @@ button:disabled { opacity: .45; cursor: default; }
   };
   function alertErr(e) { $('progress').textContent = errMsg(e); }
 
+  function renderPicks(pq) {
+    const opts = targets(S.tab);
+    $('picks').innerHTML = pq.map((c) => {
+      const d = S.done.pick.has(c.id);
+      return `<div class="pickcard ${d ? 'done' : ''}" data-c="${c.id}">
+        <div class="top"><b>${esc(c.label)}</b><span class="ptag ${d ? 'ok' : ''}">${d ? '已投 ✓' : '選一個'}</span></div>
+        ${c.description ? `<div class="sub">${esc(c.description)}</div>` : ''}
+        ${d ? '' : `<div class="picks">${opts.map((o) => `<button data-t="${o.id}">${esc(o.name)}</button>`).join('')}</div>`}
+      </div>`;
+    }).join('');
+    $('picks').querySelectorAll('.pickcard:not(.done) .picks button').forEach((b) => b.onclick = async () => {
+      const cid = b.closest('.pickcard').dataset.c, c = S.info.criteria.find((x) => x.id === cid);
+      if (!S.info.activity.is_open) { toast('老師還沒開放評分'); return; }
+      if (!confirm(`「${c.label}」\n確定選「${b.textContent}」？送出後無法修改。`)) return;
+      try {
+        await rpc('student_pick', { p_code: S.code, p_member: S.me.id, p_token: deviceToken(), p_criterion: cid, p_target: b.dataset.t });
+        S.done.pick.add(cid); toast('已送出 ✓'); renderHome();
+      } catch (e) { $('progress').textContent = errMsg(e); if (/回答過/.test(e.message)) { S.done.pick.add(cid); renderHome(); } }
+    });
+  }
+
   // ── 4. 評分表單 ──
   function openForm(kind, id) {
     if (!S.info.activity.is_open) { toast('老師還沒開放評分'); return; }
@@ -273,23 +317,31 @@ button:disabled { opacity: .45; cursor: default; }
     $('err-form').textContent = '';
     $('form-crit').innerHTML = crits(kind).map((c) => `
       <div class="crit" data-id="${c.id}">
-        <div class="q">${esc(c.label)}${c.is_text ? ' <span class="sub">（選填）</span>' : ''}</div>
+        <div class="q">${esc(c.label)}${qt(c) === 'text' ? ' <span class="sub">（選填）</span>' : ''}</div>
         ${c.description ? `<div class="d">${esc(c.description)}</div>` : ''}
-        ${c.is_text
+        ${qt(c) === 'text'
           ? `<textarea data-text="${c.id}" placeholder="寫下具體的觀察或建議">${esc(S.answers[c.id] || '')}</textarea>`
-          : `<div class="scale" style="grid-template-columns:repeat(${max <= 5 ? max : 5},1fr)">${
+          : `<div class="scale" role="radiogroup" aria-label="${esc(c.label)}">${
               Array.from({ length: max }, (_, i) => i + 1).map((v) =>
-                `<button type="button" data-v="${v}" class="${S.answers[c.id] === v ? 'on' : ''}">${v}</button>`).join('')}</div>
-             <div class="scale-ends"><span>1 待加強</span><span>${max} 非常好</span></div>`}
+                `<button type="button" role="radio" aria-label="${v} 分${word(v) ? '，' + word(v) : ''}" data-v="${v}">${v}</button>`).join('')}</div>
+             <div class="scale-read"><span>1 = ${max === 5 ? '待加強' : '最低'}</span><b></b><span>${max} = ${max === 5 ? '優秀' : '最高'}</span></div>`}
       </div>`).join('');
     $('form-crit').querySelectorAll('.crit').forEach((el) => {
       const cid = el.dataset.id;
+      const paint = () => {
+        const v = S.answers[cid] || 0;
+        el.querySelectorAll('.scale button').forEach((x) => {
+          const n = +x.dataset.v;
+          x.classList.toggle('fill', n <= v); x.classList.toggle('cur', n === v); x.setAttribute('aria-checked', n === v);
+        });
+        const r = el.querySelector('.scale-read b'); if (r) r.textContent = v ? `${v} 分${word(v) ? '・' + word(v) : ''}` : '';
+      };
       el.querySelectorAll('.scale button').forEach((b) => b.onclick = () => {
         S.answers[cid] = +b.dataset.v;
         $('err-form').textContent = '';
-        el.querySelectorAll('.scale button').forEach((x) => x.classList.toggle('on', x === b));
-        store.set(key, S.answers);
+        paint(); store.set(key, S.answers);
       });
+      paint();
       const ta = el.querySelector('textarea');
       if (ta) ta.oninput = () => { S.answers[cid] = ta.value; store.set(key, S.answers); };
     });
@@ -301,7 +353,7 @@ button:disabled { opacity: .45; cursor: default; }
     const scores = {}, texts = {};
     const missing = [];
     for (const c of crits(kind)) {
-      if (c.is_text) { const v = (S.answers[c.id] || '').trim(); if (v) texts[c.id] = v; }
+      if (qt(c) === 'text') { const v = (S.answers[c.id] || '').trim(); if (v) texts[c.id] = v; }
       else if (S.answers[c.id]) scores[c.id] = S.answers[c.id];
       else missing.push(c.label);
     }

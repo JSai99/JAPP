@@ -151,11 +151,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
           <label>組內互評額外加分上限 <input type="number" id="s-bonus" min="0" step="0.5" style="width:70px"> 分</label>
           <label class="switch"><input type="checkbox" id="s-intra"> 啟用組內互評</label>
         </div>
+        <div class="row">
+          <label>組內加分依據 <select id="s-basis"><option value="pick">組內票選題的得票（例：最力推哪位組員）</option><option value="score">組員給的評分平均</option></select></label>
+        </div>
         <div class="row"><button id="btn-save-basic">儲存</button><span class="okmsg" id="ok-basic"></span></div>
       </div>
       <div class="card" id="crit-card">
         <h2>評分面向</h2>
-        <p class="sub">「分數」題用上方量尺；「填空」題為選填文字。已有學生送出評分後，請不要刪除面向，否則該面向的分數會遺失。</p>
+        <p class="sub">「分數」題用上方量尺；「填空」題為選填文字；「票選」題讓學生從其他組（組間）或組員（組內）中選一個。已有學生送出評分後，請不要刪除面向，否則該面向的分數會遺失。</p>
         <h3>組間互評（評其他組）</h3>
         <div id="crit-inter"></div>
         <button class="ghost small" data-add="inter" style="margin-top:8px">＋ 新增面向</button>
@@ -205,7 +208,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <div id="t-progress" class="hidden">
       <div class="card">
         <div class="row"><h2 style="margin:0">填寫進度</h2><span class="sub" id="prog-time"></span><span style="flex:1"></span><button class="ghost small" id="btn-prog-refresh">重新整理</button></div>
-        <p class="sub">每 15 秒自動更新。只顯示「填了幾份」，不顯示分數。</p>
+        <p class="sub">每 15 秒自動更新。只顯示各組有幾人完成，不顯示個人與分數。</p>
         <div class="tablewrap" style="margin-top:10px"><table id="prog-table"></table></div>
       </div>
     </div>
@@ -228,12 +231,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       </div>
       <div class="card">
         <div class="row"><h2 style="margin:0">需要留意的評分</h2><span style="flex:1"></span></div>
-        <p class="sub">勾選「排除」後，該學生給的分數不列入上方計算（只影響這個畫面與匯出，不會刪除資料）。</p>
+        <p class="sub">只檢查組間評分，評分者以「第幾組的同學 A、B」表示，不顯示姓名。勾選「排除」後，該份評分不列入上方計算（只影響畫面與匯出，不會刪除資料）。</p>
         <div class="tablewrap" style="margin-top:10px"><table id="r-flags"></table></div>
       </div>
       <div class="card">
         <div class="row"><h2 style="margin:0">文字回饋</h2><span style="flex:1"></span>
-          <label class="switch"><input type="checkbox" id="r-show-rater"> 顯示填寫者</label>
           <button class="ghost small" id="btn-csv-comments">匯出 Excel（CSV）</button></div>
         <div id="r-comments"></div>
       </div>
@@ -303,10 +305,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       const a = await q(db.from('activities').insert({ title }).select().single());
       // 預設面向，老師可再改
       const defs = [
-        ...['內容完整度', '表達與台風', '簡報設計', '時間掌控', '回答提問'].map((label, i) => ({ kind: 'inter', position: i, label })),
-        { kind: 'inter', position: 5, label: '給這組的回饋', is_text: true },
-        ...['參與程度', '貢獻度', '合作態度'].map((label, i) => ({ kind: 'intra', position: i, label })),
-        { kind: 'intra', position: 3, label: '想對這位組員說', is_text: true },
+        ...['內容完整度', '表達與台風', '簡報設計', '時間掌控', '回答提問'].map((label, i) => ({ kind: 'inter', position: i, label, qtype: 'score' })),
+        { kind: 'inter', position: 5, label: '給這組的回饋', qtype: 'text', is_text: true },
+        ...['參與程度', '貢獻度', '合作態度'].map((label, i) => ({ kind: 'intra', position: i, label, qtype: 'score' })),
+        { kind: 'intra', position: 3, label: '組內最力推哪位組員？', description: '選一位這次最值得肯定的組員（不能選自己）', qtype: 'pick' },
+        { kind: 'intra', position: 4, label: '想對這位組員說', qtype: 'text', is_text: true },
       ].map((c) => ({ ...c, activity_id: a.id }));
       await q(db.from('criteria').insert(defs));
       $('new-title').value = '';
@@ -315,7 +318,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   };
 
   // ── 單一活動 ──
-  const A = { act: null, crit: [], groups: [], members: [], inter: [], intra: [], tab: 'setup', excluded: new Set() };
+  const qt = (c) => c.qtype || (c.is_text ? 'text' : 'score');
+  const hasRatings = () => A.inter.length || A.intraDone.length || A.pickDone.length;
+  const A = { act: null, crit: [], groups: [], members: [], inter: [], intraScores: [], intraDone: [], picks: [], pickDone: [], tab: 'setup', excluded: new Set() };
   async function openAct(id) {
     try {
       A.act = await q(db.from('activities').select('*').eq('id', id).single());
@@ -341,10 +346,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   }
   async function reloadRatings() {
     const gids = A.groups.map((g) => g.id), mids = A.members.map((m) => m.id);
-    if (!gids.length) { A.inter = []; A.intra = []; return; }
-    [A.inter, A.intra] = await Promise.all([
+    const cids = A.crit.map((c) => c.id);
+    if (!gids.length) { A.inter = []; A.intraScores = []; A.intraDone = []; A.picks = []; A.pickDone = []; return; }
+    [A.inter, A.intraScores, A.intraDone, A.picks, A.pickDone] = await Promise.all([
       q(db.from('inter_ratings').select('*').in('target_group_id', gids)),
-      mids.length ? q(db.from('intra_ratings').select('*').in('target_member_id', mids)) : [],
+      mids.length ? q(db.from('intra_scores').select('*').in('target_member_id', mids)) : [],
+      mids.length ? q(db.from('intra_done').select('*').in('rater_id', mids)) : [],
+      cids.length ? q(db.from('pick_votes').select('*').in('criterion_id', cids)) : [],
+      mids.length ? q(db.from('pick_done').select('*').in('rater_id', mids)) : [],
     ]);
   }
   function renderHeader() {
@@ -374,7 +383,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   // ① 設定
   let critDraft = { inter: [], intra: [] };
   function renderSetup() {
-    $('s-title').value = A.act.title; $('s-scale').value = A.act.scale_max; $('s-bonus').value = A.act.bonus_max; $('s-intra').checked = A.act.intra_enabled;
+    $('s-title').value = A.act.title; $('s-scale').value = A.act.scale_max; $('s-bonus').value = A.act.bonus_max; $('s-intra').checked = A.act.intra_enabled; $('s-basis').value = A.act.bonus_basis || 'pick';
     critDraft = { inter: A.crit.filter((c) => c.kind === 'inter').map((c) => ({ ...c })), intra: A.crit.filter((c) => c.kind === 'intra').map((c) => ({ ...c })) };
     drawCrit();
   }
@@ -385,14 +394,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
           <span class="sub">${i + 1}.</span>
           <input type="text" data-f="label" value="${esc(c.label)}" placeholder="面向名稱">
           <input type="text" data-f="description" value="${esc(c.description || '')}" placeholder="說明（選填，學生會看到）">
-          <select data-f="is_text"><option value="0" ${c.is_text ? '' : 'selected'}>分數</option><option value="1" ${c.is_text ? 'selected' : ''}>填空</option></select>
+          <select data-f="qtype">${[['score', '分數'], ['text', '填空'], ['pick', '票選']].map(([v, t]) => `<option value="${v}" ${qt(c) === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
           <span class="row" style="gap:4px"><button class="ghost small" data-mv="-1" title="上移">↑</button><button class="ghost small" data-mv="1" title="下移">↓</button><button class="danger small" data-del title="刪除">✕</button></span>
         </div>`).join('') || '<p class="sub">（沒有面向）</p>';
     }
     document.querySelectorAll('.critrow').forEach((row) => {
       const list = critDraft[row.dataset.kind], i = +row.dataset.i;
       row.querySelectorAll('[data-f]').forEach((inp) => inp.oninput = inp.onchange = () => {
-        list[i][inp.dataset.f] = inp.dataset.f === 'is_text' ? inp.value === '1' : inp.value;
+        list[i][inp.dataset.f] = inp.value;
       });
       row.querySelectorAll('[data-mv]').forEach((b) => b.onclick = () => {
         const j = i + +b.dataset.mv; if (j < 0 || j >= list.length) return;
@@ -401,11 +410,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       row.querySelector('[data-del]').onclick = () => { list.splice(i, 1); drawCrit(); };
     });
   }
-  document.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => { critDraft[b.dataset.add].push({ label: '', description: '', is_text: false }); drawCrit(); });
+  document.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => { critDraft[b.dataset.add].push({ label: '', description: '', qtype: 'score' }); drawCrit(); });
   $('btn-save-basic').onclick = async () => {
-    const patch = { title: $('s-title').value.trim() || A.act.title, scale_max: Math.max(3, Math.min(100, parseInt($('s-scale').value) || 10)),
-                    bonus_max: Math.max(0, parseFloat($('s-bonus').value) || 0), intra_enabled: $('s-intra').checked };
-    if (patch.scale_max !== A.act.scale_max && (A.inter.length || A.intra.length) && !confirm('已經有學生送出評分，改變量尺會讓新舊分數標準不一致。確定要改嗎？')) return;
+    const patch = { title: $('s-title').value.trim() || A.act.title, scale_max: Math.max(3, Math.min(100, parseInt($('s-scale').value) || 5)),
+                    bonus_max: Math.max(0, parseFloat($('s-bonus').value) || 0), intra_enabled: $('s-intra').checked, bonus_basis: $('s-basis').value };
+    if (patch.scale_max !== A.act.scale_max && hasRatings() && !confirm('已經有學生送出評分，改變量尺會讓新舊分數標準不一致。確定要改嗎？')) return;
     try { A.act = await q(db.from('activities').update(patch).eq('id', A.act.id).select().single()); renderHeader(); renderSetup();
           $('ok-basic').textContent = '已儲存'; setTimeout(() => $('ok-basic').textContent = '', 2000); }
     catch (e) { fail(e); }
@@ -416,11 +425,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     if (all.some((c) => !String(c.label).trim())) { $('err-crit').textContent = '有面向沒有名稱'; return; }
     const keep = new Set(all.filter((c) => c.id).map((c) => c.id));
     const removed = A.crit.filter((c) => !keep.has(c.id));
-    if (removed.length && (A.inter.length || A.intra.length) && !confirm(`已經有學生送出評分，刪除「${removed.map((c) => c.label).join('、')}」會讓這些分數不再計算。確定嗎？`)) return;
+    if (removed.length && hasRatings() && !confirm(`已經有學生送出評分，刪除「${removed.map((c) => c.label).join('、')}」會讓這些分數不再計算。確定嗎？`)) return;
     try {
       if (removed.length) await q(db.from('criteria').delete().in('id', removed.map((c) => c.id)));
       const rows = all.map((c) => ({ ...(c.id ? { id: c.id } : {}), activity_id: A.act.id, kind: c.kind, position: c.position,
-                                     label: c.label.trim(), description: (c.description || '').trim(), is_text: !!c.is_text }));
+                                     label: c.label.trim(), description: (c.description || '').trim(), qtype: qt(c), is_text: qt(c) === 'text' }));
       const upd = rows.filter((r) => r.id), ins = rows.filter((r) => !r.id);
       if (upd.length) await q(db.from('criteria').upsert(upd));
       if (ins.length) await q(db.from('criteria').insert(ins));
@@ -461,7 +470,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   };
   $('btn-import-go').onclick = async () => {
     if (!parsed?.groups.length) return;
-    if (A.groups.length && !confirm(A.inter.length || A.intra.length
+    if (A.groups.length && !confirm(hasRatings()
         ? '⚠ 已經有學生送出評分！匯入新名單會刪除所有評分與舊代碼，確定嗎？'
         : '匯入會取代目前的名單，並產生新的代碼。確定嗎？')) return;
     try {
@@ -510,7 +519,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   }
   $('btn-print').onclick = printSlips; $('btn-print2').onclick = printSlips;
 
-  // ④ 進度
+  // ④ 進度（只看各組完成人數，不顯示個人）
   let pollTimer = null;
   function stopPoll() { clearInterval(pollTimer); pollTimer = null; }
   async function startPoll() { await refreshProgress(); pollTimer = setInterval(() => { if (!document.hidden) refreshProgress(); }, 15000); }
@@ -519,105 +528,116 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     try { await reloadRatings(); } catch (e) { $('prog-time').textContent = '更新失敗：' + e.message; return; }
     $('prog-time').textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW');
     const G = A.groups.length, intraOn = A.act.intra_enabled && A.crit.some((c) => c.kind === 'intra');
-    const interBy = countBy(A.inter, 'rater_id'), intraBy = countBy(A.intra, 'rater_id');
+    const interScore = A.crit.some((c) => c.kind === 'inter' && qt(c) === 'score'), intraScore = A.crit.some((c) => c.kind === 'intra' && qt(c) === 'score');
+    const picksI = A.crit.filter((c) => c.kind === 'inter' && qt(c) === 'pick'), picksN = A.crit.filter((c) => c.kind === 'intra' && qt(c) === 'pick');
+    const interBy = countBy(A.inter, 'rater_id'), intraBy = countBy(A.intraDone, 'rater_id'), pickBy = countBy(A.pickDone, 'rater_id');
+    const pickOf = (m, list) => A.pickDone.filter((p) => p.rater_id === m.id && list.some((c) => c.id === p.criterion_id)).length;
     const rows = A.groups.map((g) => {
-      const need = G - 1, needIn = g.members.length - 1;
-      const cells = g.members.map((m) => {
-        const a = interBy[m.id] || 0, b = intraBy[m.id] || 0;
-        const full = a >= need && (!intraOn || b >= needIn);
-        return `<span class="pill ${full ? 'ok' : a || b ? '' : 'warn'}" title="組間 ${a}/${need}${intraOn ? `・組內 ${b}/${needIn}` : ''}">${esc(m.name)} ${a}/${need}${intraOn ? `・${b}/${needIn}` : ''}</span>`;
-      }).join(' ');
+      const n = g.members.length;
+      const interDone = g.members.filter((m) => (!interScore || (interBy[m.id] || 0) >= G - 1) && pickOf(m, picksI) >= picksI.length).length;
+      const interAny = g.members.filter((m) => (interBy[m.id] || 0) > 0).length;
+      const intraDoneN = g.members.filter((m) => (!intraScore || (intraBy[m.id] || 0) >= n - 1) && pickOf(m, picksN) >= picksN.length).length;
       const recv = A.inter.filter((r) => r.target_group_id === g.id).length;
       const possible = A.members.filter((m) => m.group.id !== g.id).length;
-      return `<tr><td><b>${esc(g.name)}</b></td><td class="num">${recv}/${possible}</td>
-        <td><div class="bar"><i style="width:${possible ? Math.round(recv / possible * 100) : 0}%"></i></div></td><td>${cells}</td></tr>`;
+      const pct = (a, b) => (b ? Math.round(a / b * 100) : 0);
+      return `<tr><td><b>${esc(g.name)}</b></td>
+        <td class="num">${interDone}/${n} 人${interAny > interDone ? `<span class="sub">（${interAny - interDone} 人進行中）</span>` : ''}</td><td><div class="bar"><i style="width:${pct(interDone, n)}%"></i></div></td>
+        ${intraOn ? `<td class="num">${intraDoneN}/${n} 人</td><td><div class="bar"><i style="width:${pct(intraDoneN, n)}%"></i></div></td>` : ''}
+        <td class="num sub">${recv}/${possible}</td></tr>`;
     }).join('');
-    $('prog-table').innerHTML = `<tr><th>組別</th><th class="num">收到幾份組間評分</th><th></th><th>每位組員：組間${intraOn ? '・組內' : ''} 已評幾份</th></tr>${rows}`;
+    $('prog-table').innerHTML = `<tr><th>組別</th><th class="num">組間互評完成</th><th></th>${intraOn ? '<th class="num">組內互評完成</th><th></th>' : ''}<th class="num">這組收到幾份組間評分</th></tr>${rows}`;
   }
   function countBy(arr, k) { const o = {}; arr.forEach((r) => o[r[k]] = (o[r[k]] || 0) + 1); return o; }
 
   // ⑤ 成績
-  $('r-trim').onchange = renderResults; $('r-show-rater').onchange = renderResults;
-  function scoredCrit(kind) { return A.crit.filter((c) => c.kind === kind && !c.is_text); }
+  $('r-trim').onchange = renderResults;
+  function scoredCrit(kind) { return A.crit.filter((c) => c.kind === kind && qt(c) === 'score'); }
   function ratingAvg(r, crits) { const v = crits.map((c) => r.scores[c.id]).filter((x) => typeof x === 'number'); return mean(v); }
   function trimmed(vals) {
     if (!$('r-trim').checked || vals.length < 5) return vals;
     const s = [...vals].sort((a, b) => a - b); return s.slice(1, -1);
   }
+  function votesFor(c, key, id) { return A.picks.filter((p) => p.criterion_id === c.id && p[key] === id).length; }
   function computeInter() {
     const crits = scoredCrit('inter'), max = A.act.scale_max;
     return A.groups.map((g) => {
       const rs = A.inter.filter((r) => r.target_group_id === g.id && !A.excluded.has(r.rater_id));
       const per = crits.map((c) => mean(trimmed(rs.map((r) => r.scores[c.id]).filter((x) => typeof x === 'number'))));
       const avg = mean(trimmed(rs.map((r) => ratingAvg(r, crits)).filter((x) => x != null)));
-      return { g, n: rs.length, per, avg, score100: avg == null ? null : avg / max * 100 };
+      const raterGroups = new Set(rs.map((r) => A.members.find((m) => m.id === r.rater_id)?.group.id));
+      return { g, n: rs.length, groupsRated: raterGroups.size, per, avg, score100: avg == null ? null : avg / max * 100 };
     });
   }
+  function bonusPick() { return A.crit.find((c) => c.kind === 'intra' && qt(c) === 'pick'); }
   function computeIntra() {
-    const crits = scoredCrit('intra'), max = A.act.scale_max, bonusMax = +A.act.bonus_max;
+    const crits = scoredCrit('intra'), max = A.act.scale_max, bonusMax = +A.act.bonus_max, pc = bonusPick();
+    const byVotes = A.act.bonus_basis === 'pick' && pc;
     return A.members.map((m) => {
-      const rs = A.intra.filter((r) => r.target_member_id === m.id && !A.excluded.has(r.rater_id));
+      const rs = A.intraScores.filter((r) => r.target_member_id === m.id);
       const avg = mean(rs.map((r) => ratingAvg(r, crits)).filter((x) => x != null));
-      return { m, n: rs.length, of: m.group.members.length - 1, avg, bonus: avg == null ? null : avg / max * bonusMax };
+      const votes = pc ? votesFor(pc, 'target_member_id', m.id) : null;
+      const voters = m.group.members.length - 1;
+      const bonus = byVotes ? (voters ? votes / voters * bonusMax : 0) : (avg == null ? null : avg / max * bonusMax);
+      return { m, n: rs.length, of: voters, avg, votes, bonus };
     });
+  }
+  // 可疑評分只看組間；以「第幾組的同學 A/B/C」呈現，不顯示姓名
+  function raterLabel(id) {
+    const m = A.members.find((x) => x.id === id); if (!m) return '?';
+    const raters = [...new Set(A.inter.filter((r) => A.members.find((x) => x.id === r.rater_id)?.group.id === m.group.id).map((r) => r.rater_id))].sort();
+    return `${m.group.name}的同學 ${String.fromCharCode(65 + raters.indexOf(id))}`;
   }
   function computeFlags() {
-    const flags = [];
-    const interC = scoredCrit('inter'), intraC = scoredCrit('intra');
+    const flags = [], interC = scoredCrit('inter');
     const groupAvg = {}; A.groups.forEach((g) => { groupAvg[g.id] = mean(A.inter.filter((r) => r.target_group_id === g.id).map((r) => ratingAvg(r, interC)).filter((x) => x != null)); });
-    for (const m of A.members) {
-      const mine = A.inter.filter((r) => r.rater_id === m.id);
-      const why = [];
+    const raters = [...new Set(A.inter.map((r) => r.rater_id))];
+    for (const id of raters) {
+      const mine = A.inter.filter((r) => r.rater_id === id), why = [];
       if (mine.length >= 2) {
         const all = mine.flatMap((r) => interC.map((c) => r.scores[c.id])).filter((x) => typeof x === 'number');
         if (all.length && all.every((x) => x === all[0])) why.push(`給所有組都是 ${all[0]} 分`);
         const dev = mean(mine.map((r) => Math.abs(ratingAvg(r, interC) - groupAvg[r.target_group_id])));
-        if (dev != null && dev >= 2.5) why.push(`和全班平均相差 ${fmt(dev, 1)} 分`);
+        if (dev != null && dev >= A.act.scale_max * 0.25) why.push(`和全班平均相差 ${fmt(dev, 1)} 分`);
       }
-      const mineIn = A.intra.filter((r) => r.rater_id === m.id);
-      if (mineIn.length >= 2) {
-        const all = mineIn.flatMap((r) => intraC.map((c) => r.scores[c.id])).filter((x) => typeof x === 'number');
-        if (all.length && all.every((x) => x === all[0]) && all[0] <= Math.ceil(A.act.scale_max * 0.3)) why.push(`給所有組員都只有 ${all[0]} 分`);
-      }
-      if (why.length) flags.push({ m, why });
+      if (why.length) flags.push({ id, label: raterLabel(id), why });
     }
     return flags;
   }
   function renderResults() {
     const max = A.act.scale_max;
-    const interC = scoredCrit('inter');
+    const interC = scoredCrit('inter'), interPicks = A.crit.filter((c) => c.kind === 'inter' && qt(c) === 'pick');
     const inter = computeInter();
-    $('r-inter-note').textContent = `各面向為 1~${max} 分的平均；「百分制」= 平均 ÷ ${max} × 100，可直接乘上 40% 計入期中成績。`;
-    $('r-inter').innerHTML = `<tr><th>組別</th><th class="num">評分人數</th>${interC.map((c) => `<th class="num">${esc(c.label)}</th>`).join('')}<th class="num">平均</th><th class="num">百分制</th></tr>` +
-      inter.map((x) => `<tr><td><b>${esc(x.g.name)}</b></td><td class="num">${x.n}</td>${x.per.map((v) => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num"><b>${fmt(x.avg)}</b></td><td class="num"><b>${fmt(x.score100, 1)}</b></td></tr>`).join('');
+    $('r-inter-note').textContent = `各面向為 1~${max} 分的平均；「百分制」= 平均 ÷ ${max} × 100，可直接乘上 40% 計入期中成績。「評分組數」可確認是否每組都有評。`;
+    $('r-inter').innerHTML = `<tr><th>組別</th><th class="num">評分份數</th><th class="num">評分組數</th>${interC.map((c) => `<th class="num">${esc(c.label)}</th>`).join('')}<th class="num">平均</th><th class="num">百分制</th>${interPicks.map((c) => `<th class="num">${esc(c.label)}（票）</th>`).join('')}</tr>` +
+      inter.map((x) => `<tr><td><b>${esc(x.g.name)}</b></td><td class="num">${x.n}</td><td class="num">${x.groupsRated}/${A.groups.length - 1}</td>${x.per.map((v) => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num"><b>${fmt(x.avg)}</b></td><td class="num"><b>${fmt(x.score100, 1)}</b></td>${interPicks.map((c) => `<td class="num">${votesFor(c, 'target_group_id', x.g.id)}</td>`).join('')}</tr>`).join('');
 
-    const intraOn = A.act.intra_enabled && scoredCrit('intra').length;
+    const intraOn = A.act.intra_enabled && A.crit.some((c) => c.kind === 'intra');
     $('r-intra-card').classList.toggle('hidden', !intraOn);
     if (intraOn) {
-      const intra = computeIntra();
-      $('r-intra-note').textContent = `額外加分 = 組員給的平均分 ÷ ${max} × ${A.act.bonus_max}（上限 ${A.act.bonus_max} 分）。沒有人評的同學不加分。`;
-      $('r-intra').innerHTML = `<tr><th>組別</th><th>姓名</th><th>學號</th><th class="num">收到幾份</th><th class="num">平均</th><th class="num">額外加分</th></tr>` +
-        intra.map((x) => `<tr><td>${esc(x.m.group.name)}</td><td>${esc(x.m.name)}</td><td class="sub">${esc(x.m.student_no)}</td><td class="num">${x.n}/${x.of}</td><td class="num">${fmt(x.avg)}</td><td class="num"><b>${fmt(x.bonus)}</b></td></tr>`).join('');
+      const intra = computeIntra(), pc = bonusPick(), byVotes = A.act.bonus_basis === 'pick' && pc;
+      $('r-intra-note').textContent = byVotes
+        ? `額外加分 = 「${pc.label}」得票數 ÷ 組內可投票人數 × ${A.act.bonus_max}。全組都推他就加滿 ${A.act.bonus_max} 分。組內評分完全匿名。`
+        : `額外加分 = 組員給的平均分 ÷ ${max} × ${A.act.bonus_max}。組內評分完全匿名。`;
+      $('r-intra').innerHTML = `<tr><th>組別</th><th>姓名</th><th>學號</th><th class="num">收到評分</th><th class="num">平均</th>${pc ? `<th class="num">${esc(pc.label)}（票）</th>` : ''}<th class="num">額外加分</th></tr>` +
+        intra.map((x) => `<tr><td>${esc(x.m.group.name)}</td><td>${esc(x.m.name)}</td><td class="sub">${esc(x.m.student_no)}</td><td class="num">${x.n}/${x.of}</td><td class="num">${fmt(x.avg)}</td>${pc ? `<td class="num">${x.votes}</td>` : ''}<td class="num"><b>${fmt(x.bonus)}</b></td></tr>`).join('');
     }
 
     const flags = computeFlags();
     $('r-flags').innerHTML = flags.length
-      ? `<tr><th>排除</th><th>學生</th><th>原因</th></tr>` + flags.map((f) => `<tr><td><input type="checkbox" data-ex="${f.m.id}" ${A.excluded.has(f.m.id) ? 'checked' : ''}></td><td>${esc(f.m.group.name)}・${esc(f.m.name)}</td><td>${f.why.map(esc).join('；')}</td></tr>`).join('')
-      : '<tr><td class="sub">目前沒有明顯異常的評分。</td></tr>';
+      ? `<tr><th>排除</th><th>評分者</th><th>原因</th></tr>` + flags.map((f) => `<tr><td><input type="checkbox" data-ex="${f.id}" ${A.excluded.has(f.id) ? 'checked' : ''}></td><td>${esc(f.label)}</td><td>${f.why.map(esc).join('；')}</td></tr>`).join('')
+      : '<tr><td class="sub">目前沒有明顯異常的組間評分。</td></tr>';
     $('r-flags').querySelectorAll('[data-ex]').forEach((cb) => cb.onchange = () => { cb.checked ? A.excluded.add(cb.dataset.ex) : A.excluded.delete(cb.dataset.ex); renderResults(); });
 
-    const show = $('r-show-rater').checked;
-    const byId = Object.fromEntries(A.members.map((m) => [m.id, m]));
-    const textCrit = A.crit.filter((c) => c.is_text);
-    const block = (title, rs) => {
-      const items = rs.flatMap((r) => commentTexts(r, textCrit.filter((c) => c.kind === kindOf(r))).map((t) => ({ r, t })));
-      return items.length ? `<h3>${esc(title)}</h3>` + items.map(({ r, t }) => `<div class="comment">${esc(t)}${show ? `<div class="by">— ${esc(byId[r.rater_id]?.name || '?')}</div>` : ''}</div>`).join('') : '';
+    const groupOf = (id) => A.members.find((m) => m.id === id)?.group.name || '?';
+    const textCrit = A.crit.filter((c) => qt(c) === 'text');
+    const block = (title, rs, kind) => {
+      const items = rs.flatMap((r) => commentTexts(r, textCrit.filter((c) => c.kind === kind)).map((t) => ({ r, t })));
+      return items.length ? `<h3>${esc(title)}</h3>` + items.map(({ r, t }) => `<div class="comment">${esc(t)}${kind === 'inter' ? `<div class="by">— 來自${esc(groupOf(r.rater_id))}</div>` : ''}</div>`).join('') : '';
     };
-    const html = A.groups.map((g) => block(`給 ${g.name}`, A.inter.filter((r) => r.target_group_id === g.id))).join('')
-      + A.members.map((m) => block(`給 ${m.group.name}・${m.name}（組內）`, A.intra.filter((r) => r.target_member_id === m.id))).join('');
+    const html = A.groups.map((g) => block(`給 ${g.name}`, A.inter.filter((r) => r.target_group_id === g.id), 'inter')).join('')
+      + A.members.map((m) => block(`給 ${m.group.name}・${m.name}（組內，匿名）`, A.intraScores.filter((r) => r.target_member_id === m.id), 'intra')).join('');
     $('r-comments').innerHTML = html || '<p class="sub" style="margin-top:8px">還沒有文字回饋。</p>';
   }
-  const kindOf = (r) => (r.target_group_id ? 'inter' : 'intra');
   function commentTexts(r, textCrit) {
     if (!r.comment) return [];
     try { const o = JSON.parse(r.comment); if (o && typeof o === 'object') return textCrit.filter((c) => o[c.id]).map((c) => (textCrit.length > 1 ? `【${c.label}】` : '') + o[c.id]).concat(Object.keys(o).filter((k) => !textCrit.some((c) => c.id === k)).map((k) => o[k])); }
@@ -634,21 +654,22 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   }
   $('btn-csv-inter').onclick = () => {
     const interC = scoredCrit('inter'), inter = computeInter();
-    // 一人一列，方便直接貼進成績單
     const rows = [['組別', '姓名', '學號', ...interC.map((c) => c.label), '平均', '組間互評百分制']];
     inter.forEach((x) => x.g.members.forEach((m) => rows.push([x.g.name, m.name, m.student_no, ...x.per.map((v) => fmt(v)), fmt(x.avg), fmt(x.score100, 1)])));
     downloadCsv('組間互評', rows);
   };
   $('btn-csv-intra').onclick = () => {
-    const rows = [['組別', '姓名', '學號', '收到幾份', '平均', '額外加分']];
-    computeIntra().forEach((x) => rows.push([x.m.group.name, x.m.name, x.m.student_no, x.n, fmt(x.avg), fmt(x.bonus)]));
+    const pc = bonusPick();
+    const rows = [['組別', '姓名', '學號', '收到評分', '平均', ...(pc ? [pc.label + '（票）'] : []), '額外加分']];
+    computeIntra().forEach((x) => rows.push([x.m.group.name, x.m.name, x.m.student_no, x.n, fmt(x.avg), ...(pc ? [x.votes] : []), fmt(x.bonus)]));
     downloadCsv('組內加分', rows);
   };
   $('btn-csv-comments').onclick = () => {
-    const show = $('r-show-rater').checked, byId = Object.fromEntries(A.members.map((m) => [m.id, m])), textCrit = A.crit.filter((c) => c.is_text);
-    const rows = [['類型', '對象', ...(show ? ['填寫者'] : []), '內容']];
-    A.groups.forEach((g) => A.inter.filter((r) => r.target_group_id === g.id).forEach((r) => commentTexts(r, textCrit.filter((c) => c.kind === 'inter')).forEach((t) => rows.push(['組間', g.name, ...(show ? [byId[r.rater_id]?.name] : []), t]))));
-    A.members.forEach((m) => A.intra.filter((r) => r.target_member_id === m.id).forEach((r) => commentTexts(r, textCrit.filter((c) => c.kind === 'intra')).forEach((t) => rows.push(['組內', `${m.group.name} ${m.name}`, ...(show ? [byId[r.rater_id]?.name] : []), t]))));
+    const groupOf = (id) => A.members.find((m) => m.id === id)?.group.name || '';
+    const textCrit = A.crit.filter((c) => qt(c) === 'text');
+    const rows = [['類型', '對象', '來自', '內容']];
+    A.groups.forEach((g) => A.inter.filter((r) => r.target_group_id === g.id).forEach((r) => commentTexts(r, textCrit.filter((c) => c.kind === 'inter')).forEach((t) => rows.push(['組間', g.name, groupOf(r.rater_id), t]))));
+    A.members.forEach((m) => A.intraScores.filter((r) => r.target_member_id === m.id).forEach((r) => commentTexts(r, textCrit.filter((c) => c.kind === 'intra')).forEach((t) => rows.push(['組內', `${m.group.name} ${m.name}`, '匿名', t]))));
     downloadCsv('文字回饋', rows);
   };
 
