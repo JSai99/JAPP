@@ -48,4 +48,4 @@ JAPP/
 
 本專案以 [MIT License](LICENSE) 釋出——歡迎自由使用、修改、散布。
 
-內含的開源函式庫沿用其原始授權：[pdf.js](https://mozilla.github.io/pdf.js/)（Apache-2.0）、[pdf-lib](https://pdf-lib.js.org/)（MIT）、[supabase-js](https://github.com/supabase/supabase-js)（MIT）、[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)（MIT）。
+內含的開源函式庫沿用其原始授權：[pdf.js](https://mozilla.github.io/pdf.js/)（Apache-2.0）、[pdf-lib](https://pdf-lib.js.org/)（MIT）、[supabase-js](https://github.com/supabase/supabase-js)（MIT）、[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)（MIT）、[fflate](https://github.com/101arrowz/fflate)（MIT）。
