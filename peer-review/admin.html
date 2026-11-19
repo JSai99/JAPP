@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>互評後台</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f4f5f7; --card: #fff; --line: #dfe2e6; --text: #1f2328; --dim: #67707a;
+  --accent: #3b6fe0; --accent-soft: #e8efff; --ok: #1f8a4c; --ok-soft: #e3f5ea; --warn: #b4540a; --warn-soft: #fff4e5; --err: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1d2023; --card: #2a2e32; --line: #3d4247; --text: #e8eaed; --dim: #9aa0a6;
+          --accent: #6b9bff; --accent-soft: #23314f; --ok: #4cc27f; --ok-soft: #1e3a2a; --warn: #f0a050; --warn-soft: #3a2a14; --err: #ff6b6b; }
+}
+body { font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+       background: var(--bg); color: var(--text); line-height: 1.55; font-size: 15px; }
+header { background: var(--card); border-bottom: 1px solid var(--line); padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+header h1 { font-size: 18px; }
+header .sp { flex: 1; }
+main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+h2 { font-size: 17px; margin-bottom: 4px; }
+h3 { font-size: 15px; margin: 14px 0 6px; }
+.sub { color: var(--dim); font-size: 13px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-top: 16px; }
+input[type=text], input[type=email], input[type=password], input[type=number], textarea, select {
+  font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+textarea { width: 100%; min-height: 160px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+button { font: inherit; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff; font-weight: 600; }
+button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button.danger { background: transparent; color: var(--err); border: 1px solid var(--line); }
+button.small { padding: 4px 10px; font-size: 13px; }
+button:disabled { opacity: .45; cursor: default; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.row + .row { margin-top: 10px; }
+.err { color: var(--err); font-size: 14px; margin-top: 8px; white-space: pre-line; }
+.okmsg { color: var(--ok); font-size: 14px; margin-top: 8px; }
+.hidden { display: none !important; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
+.tabs button { background: var(--card); color: var(--text); border: 1px solid var(--line); }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; vertical-align: top; }
+th { color: var(--dim); font-weight: 600; font-size: 13px; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tablewrap { overflow-x: auto; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.bigopen { font-size: 17px; padding: 12px 22px; }
+.bigopen.isopen { background: var(--ok); }
+.acts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+.act { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; text-align: left; color: var(--text); font-weight: 400; }
+.act:hover { border-color: var(--accent); }
+.act b { display: block; font-size: 16px; margin-bottom: 4px; }
+.critrow { display: grid; grid-template-columns: 26px 1fr 1.4fr 110px auto; gap: 8px; align-items: center; margin-top: 8px; }
+.critrow input { width: 100%; }
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
+.grp { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.grp .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 20px; font-weight: 800; letter-spacing: 3px; color: var(--accent); }
+.grp li { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 0; font-size: 14px; }
+.share { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+#qr svg, #qr img { width: 220px; height: 220px; background: #fff; padding: 10px; border-radius: 10px; }
+.url { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
+.bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; min-width: 80px; }
+.bar i { display: block; height: 100%; background: var(--ok); }
+.comment { border-left: 3px solid var(--accent-soft); padding: 4px 10px; margin: 6px 0; font-size: 14px; white-space: pre-wrap; }
+.comment .by { color: var(--dim); font-size: 12px; }
+.login { max-width: 380px; margin: 60px auto; }
+.login input { width: 100%; margin-top: 8px; }
+/* 列印：只印代碼小紙條 */
+#slips { display: none; }
+@media print {
+  body { background: #fff; color: #000; }
+  body > *:not(#slips) { display: none !important; }
+  #slips { display: grid !important; grid-template-columns: 1fr 1fr; gap: 0; }
+  .slip { border: 1px dashed #999; padding: 18px; text-align: center; page-break-inside: avoid; }
+  .slip .c { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 30px; font-weight: 800; letter-spacing: 5px; margin: 6px 0; }
+  .slip .u { font-size: 11px; color: #444; word-break: break-all; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>📝 互評後台</h1>
+  <span class="sp"></span>
+  <span class="sub" id="who"></span>
+  <button class="ghost small hidden" id="btn-logout">登出</button>
+</header>
+
+<main>
+  <!-- 登入 -->
+  <section id="v-login" class="card login hidden">
+    <h2>老師登入</h2>
+    <p class="sub">第一次使用請按「註冊」，到信箱點確認連結後再回來登入。</p>
+    <input type="email" id="email" placeholder="Email" autocomplete="username">
+    <input type="password" id="password" placeholder="密碼（至少 6 碼）" autocomplete="current-password">
+    <div class="row" style="margin-top:12px">
+      <button id="btn-login">登入</button>
+      <button class="ghost" id="btn-signup">註冊</button>
+    </div>
+    <p class="err" id="err-login"></p>
+    <p class="okmsg" id="ok-login"></p>
+  </section>
+
+  <section id="v-noteacher" class="card hidden">
+    <h2>帳號尚未開通</h2>
+    <p>你已登入，但這個 email 還不在老師名單中。請把 email 告訴 JARVIS 開通後，重新整理此頁。</p>
+  </section>
+
+  <!-- 活動列表 -->
+  <section id="v-list" class="hidden">
+    <h2>互評活動</h2>
+    <p class="sub">一個班的一次報告建立一個活動，例如「資料探勘・期中報告」。</p>
+    <div class="row" style="margin-top:12px">
+      <input type="text" id="new-title" placeholder="活動名稱" style="min-width:260px">
+      <button id="btn-new">建立活動</button>
+    </div>
+    <div class="acts" id="acts"></div>
+  </section>
+
+  <!-- 單一活動 -->
+  <section id="v-act" class="hidden">
+    <div class="row">
+      <button class="ghost small" id="btn-back">← 所有活動</button>
+      <h2 id="act-title" style="margin:0"></h2>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="bigopen" id="btn-open"></button>
+      <span class="sub" id="open-hint"></span>
+    </div>
+    <div class="tabs" id="tabs">
+      <button data-tab="setup" class="on">① 設定</button>
+      <button data-tab="roster">② 名單與代碼</button>
+      <button data-tab="share">③ 發給學生</button>
+      <button data-tab="progress">④ 填寫進度</button>
+      <button data-tab="results">⑤ 成績</button>
+    </div>
+
+    <!-- ① 設定 -->
+    <div id="t-setup">
+      <div class="card">
+        <h2>基本設定</h2>
+        <div class="row" style="margin-top:10px">
+          <label>名稱 <input type="text" id="s-title" style="min-width:260px"></label>
+        </div>
+        <div class="row">
+          <label>評分量尺 1 到 <input type="number" id="s-scale" min="3" max="100" style="width:70px"> 分</label>
+          <label>組內互評額外加分上限 <input type="number" id="s-bonus" min="0" step="0.5" style="width:70px"> 分</label>
+          <label class="switch"><input type="checkbox" id="s-intra"> 啟用組內互評</label>
+        </div>
+        <div class="row"><button id="btn-save-basic">儲存</button><span class="okmsg" id="ok-basic"></span></div>
+      </div>
+      <div class="card" id="crit-card">
+        <h2>評分面向</h2>
+        <p class="sub">「分數」題用上方量尺；「填空」題為選填文字。已有學生送出評分後，請不要刪除面向，否則該面向的分數會遺失。</p>
+        <h3>組間互評（評其他組）</h3>
+        <div id="crit-inter"></div>
+        <button class="ghost small" data-add="inter" style="margin-top:8px">＋ 新增面向</button>
+        <h3>組內互評（評自己組員）</h3>
+        <div id="crit-intra"></div>
+        <button class="ghost small" data-add="intra" style="margin-top:8px">＋ 新增面向</button>
+        <div class="row" style="margin-top:14px"><button id="btn-save-crit">儲存評分面向</button><span class="okmsg" id="ok-crit"></span></div>
+        <p class="err" id="err-crit"></p>
+      </div>
+    </div>
+
+    <!-- ② 名單 -->
+    <div id="t-roster" class="hidden">
+      <div class="card">
+        <h2>匯入名單</h2>
+        <p class="sub">從 Excel 直接複製貼上，每行一人：<b>組別、姓名</b>（可再加學號）。組別可以寫「1」或「第1組」。匯入會<b>取代</b>目前的名單與代碼。</p>
+        <textarea id="roster-text" placeholder="1&#9;王小明&#9;B11001001&#10;1&#9;李小華&#10;2&#9;陳大同"></textarea>
+        <div class="row" style="margin-top:10px"><button id="btn-import">預覽</button><span class="sub" id="import-preview"></span></div>
+        <div class="row hidden" id="import-confirm"><button id="btn-import-go">確定匯入</button></div>
+        <p class="err" id="err-roster"></p>
+      </div>
+      <div class="card">
+        <div class="row"><h2 style="margin:0">組別與代碼</h2><span class="sp" style="flex:1"></span><button class="ghost small" id="btn-print">🖨 列印代碼紙條</button></div>
+        <p class="sub">學生若換手機或選錯名字，按名字旁的「重設」即可重新選擇。</p>
+        <div class="groups" id="groups"></div>
+      </div>
+    </div>
+
+    <!-- ③ 發給學生 -->
+    <div id="t-share" class="hidden">
+      <div class="card">
+        <h2>學生填寫網址</h2>
+        <p class="sub">投影 QR code，學生掃描後輸入自己組的代碼。</p>
+        <div class="share" style="margin-top:12px">
+          <div id="qr"></div>
+          <div>
+            <p class="url" id="stu-url"></p>
+            <div class="row" style="margin-top:10px"><button class="ghost small" id="btn-copy">複製網址</button><button class="ghost small" id="btn-print2">🖨 列印代碼紙條</button></div>
+            <p class="sub" style="margin-top:10px">代碼一覽：</p>
+            <div id="code-list" style="margin-top:6px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ 進度 -->
+    <div id="t-progress" class="hidden">
+      <div class="card">
+        <div class="row"><h2 style="margin:0">填寫進度</h2><span class="sub" id="prog-time"></span><span style="flex:1"></span><button class="ghost small" id="btn-prog-refresh">重新整理</button></div>
+        <p class="sub">每 15 秒自動更新。只顯示「填了幾份」，不顯示分數。</p>
+        <div class="tablewrap" style="margin-top:10px"><table id="prog-table"></table></div>
+      </div>
+    </div>
+
+    <!-- ⑤ 成績 -->
+    <div id="t-results" class="hidden">
+      <div class="card">
+        <div class="row">
+          <h2 style="margin:0">組間成績</h2><span style="flex:1"></span>
+          <label class="switch"><input type="checkbox" id="r-trim"> 去掉最高與最低分（評分人數 ≥ 5 時）</label>
+          <button class="ghost small" id="btn-csv-inter">匯出 Excel（CSV）</button>
+        </div>
+        <p class="sub" id="r-inter-note"></p>
+        <div class="tablewrap" style="margin-top:10px"><table id="r-inter"></table></div>
+      </div>
+      <div class="card" id="r-intra-card">
+        <div class="row"><h2 style="margin:0">組內互評：額外加分</h2><span style="flex:1"></span><button class="ghost small" id="btn-csv-intra">匯出 Excel（CSV）</button></div>
+        <p class="sub" id="r-intra-note"></p>
+        <div class="tablewrap" style="margin-top:10px"><table id="r-intra"></table></div>
+      </div>
+      <div class="card">
+        <div class="row"><h2 style="margin:0">需要留意的評分</h2><span style="flex:1"></span></div>
+        <p class="sub">勾選「排除」後，該學生給的分數不列入上方計算（只影響這個畫面與匯出，不會刪除資料）。</p>
+        <div class="tablewrap" style="margin-top:10px"><table id="r-flags"></table></div>
+      </div>
+      <div class="card">
+        <div class="row"><h2 style="margin:0">文字回饋</h2><span style="flex:1"></span>
+          <label class="switch"><input type="checkbox" id="r-show-rater"> 顯示填寫者</label>
+          <button class="ghost small" id="btn-csv-comments">匯出 Excel（CSV）</button></div>
+        <div id="r-comments"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="slips"></div>
+
+<script src="../shared/vendor/supabase.js"></script>
+<script src="../shared/vendor/qrcode.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+  const db = supabase.createClient(PEER_CONFIG.supabaseUrl, PEER_CONFIG.supabaseKey);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const views = ['login', 'noteacher', 'list', 'act'];
+  const view = (v) => views.forEach((x) => $('v-' + x).classList.toggle('hidden', x !== v));
+  const fmt = (n, d = 2) => (n == null || isNaN(n) ? '—' : (+n).toFixed(d));
+  const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
+  async function q(p) { const { data, error } = await p; if (error) throw error; return data; }
+  function fail(e, el) { const m = e?.message || String(e); if (el) $(el).textContent = m; else alert(m); console.error(e); }
+
+  // ── 登入 ──
+  async function boot() {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) { $('who').textContent = ''; $('btn-logout').classList.add('hidden'); view('login'); return; }
+    $('who').textContent = session.user.email;
+    $('btn-logout').classList.remove('hidden');
+    const ok = await q(db.rpc('is_teacher'));
+    if (!ok) { view('noteacher'); return; }
+    const want = new URLSearchParams(location.search).get('a');
+    if (want) openAct(want); else loadList();
+  }
+  $('btn-login').onclick = async () => {
+    $('err-login').textContent = ''; $('ok-login').textContent = '';
+    const { error } = await db.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+    if (error) { $('err-login').textContent = /confirm/i.test(error.message) ? '請先到信箱點確認連結' : /Invalid/i.test(error.message) ? 'Email 或密碼錯誤' : error.message; return; }
+    boot();
+  };
+  $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-login').click(); });
+  $('btn-signup').onclick = async () => {
+    $('err-login').textContent = ''; $('ok-login').textContent = '';
+    const { data, error } = await db.auth.signUp({ email: $('email').value.trim(), password: $('password').value });
+    if (error) { $('err-login').textContent = error.message; return; }
+    if (data.session) boot();
+    else $('ok-login').textContent = '已寄出確認信，請到信箱點連結（若跳到打不開的頁面也沒關係），再回來登入。';
+  };
+  $('btn-logout').onclick = async () => { await db.auth.signOut(); history.replaceState(null, '', location.pathname); boot(); };
+
+  // ── 活動列表 ──
+  async function loadList() {
+    history.replaceState(null, '', location.pathname);
+    stopPoll();
+    view('list');
+    const acts = await q(db.from('activities').select('id,title,is_open,created_at,groups(count)').order('created_at', { ascending: false }));
+    $('acts').innerHTML = acts.length ? acts.map((a) => `<button class="act" data-id="${a.id}"><b>${esc(a.title)}</b>
+      <span class="pill ${a.is_open ? 'ok' : ''}">${a.is_open ? '評分中' : '未開放'}</span>
+      <span class="sub">　${a.groups[0]?.count || 0} 組・${new Date(a.created_at).toLocaleDateString('zh-TW')}</span></button>`).join('')
+      : '<p class="sub" style="margin-top:8px">還沒有活動，先建立一個吧。</p>';
+    $('acts').querySelectorAll('.act').forEach((b) => b.onclick = () => openAct(b.dataset.id));
+  }
+  $('btn-new').onclick = async () => {
+    const title = $('new-title').value.trim();
+    if (!title) { $('new-title').focus(); return; }
+    try {
+      const a = await q(db.from('activities').insert({ title }).select().single());
+      // 預設面向，老師可再改
+      const defs = [
+        ...['內容完整度', '表達與台風', '簡報設計', '時間掌控', '回答提問'].map((label, i) => ({ kind: 'inter', position: i, label })),
+        { kind: 'inter', position: 5, label: '給這組的回饋', is_text: true },
+        ...['參與程度', '貢獻度', '合作態度'].map((label, i) => ({ kind: 'intra', position: i, label })),
+        { kind: 'intra', position: 3, label: '想對這位組員說', is_text: true },
+      ].map((c) => ({ ...c, activity_id: a.id }));
+      await q(db.from('criteria').insert(defs));
+      $('new-title').value = '';
+      openAct(a.id);
+    } catch (e) { fail(e); }
+  };
+
+  // ── 單一活動 ──
+  const A = { act: null, crit: [], groups: [], members: [], inter: [], intra: [], tab: 'setup', excluded: new Set() };
+  async function openAct(id) {
+    try {
+      A.act = await q(db.from('activities').select('*').eq('id', id).single());
+    } catch (e) { loadList(); return; }
+    history.replaceState(null, '', '?a=' + id);
+    A.excluded = new Set();
+    view('act');
+    await reload();
+    setTab(A.tab);
+  }
+  async function reload() {
+    const id = A.act.id;
+    const [act, crit, groups] = await Promise.all([
+      q(db.from('activities').select('*').eq('id', id).single()),
+      q(db.from('criteria').select('*').eq('activity_id', id).order('position')),
+      q(db.from('groups').select('*, members(*)').eq('activity_id', id).order('position')),
+    ]);
+    A.act = act; A.crit = crit;
+    A.groups = groups.map((g) => ({ ...g, members: g.members.sort((a, b) => a.position - b.position) }));
+    A.members = A.groups.flatMap((g) => g.members.map((m) => ({ ...m, group: g })));
+    await reloadRatings();
+    renderHeader();
+  }
+  async function reloadRatings() {
+    const gids = A.groups.map((g) => g.id), mids = A.members.map((m) => m.id);
+    if (!gids.length) { A.inter = []; A.intra = []; return; }
+    [A.inter, A.intra] = await Promise.all([
+      q(db.from('inter_ratings').select('*').in('target_group_id', gids)),
+      mids.length ? q(db.from('intra_ratings').select('*').in('target_member_id', mids)) : [],
+    ]);
+  }
+  function renderHeader() {
+    $('act-title').textContent = A.act.title;
+    const o = A.act.is_open;
+    $('btn-open').textContent = o ? '● 評分進行中（按此關閉）' : '開放學生評分';
+    $('btn-open').classList.toggle('isopen', o);
+    $('open-hint').textContent = o ? '學生現在可以送出評分' : '關閉時學生看得到題目，但無法送出';
+  }
+  $('btn-open').onclick = async () => {
+    const to = !A.act.is_open;
+    if (to && !A.groups.length) { alert('請先到「② 名單與代碼」匯入名單'); return; }
+    if (!to && !confirm('確定關閉評分？學生將無法再送出。')) return;
+    try { await q(db.from('activities').update({ is_open: to }).eq('id', A.act.id)); A.act.is_open = to; renderHeader(); }
+    catch (e) { fail(e); }
+  };
+  $('btn-back').onclick = loadList;
+  $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+  function setTab(t) {
+    A.tab = t;
+    $('tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+    for (const x of ['setup', 'roster', 'share', 'progress', 'results']) $('t-' + x).classList.toggle('hidden', x !== t);
+    stopPoll();
+    ({ setup: renderSetup, roster: renderRoster, share: renderShare, progress: startPoll, results: async () => { await reloadRatings(); renderResults(); } })[t]();
+  }
+
+  // ① 設定
+  let critDraft = { inter: [], intra: [] };
+  function renderSetup() {
+    $('s-title').value = A.act.title; $('s-scale').value = A.act.scale_max; $('s-bonus').value = A.act.bonus_max; $('s-intra').checked = A.act.intra_enabled;
+    critDraft = { inter: A.crit.filter((c) => c.kind === 'inter').map((c) => ({ ...c })), intra: A.crit.filter((c) => c.kind === 'intra').map((c) => ({ ...c })) };
+    drawCrit();
+  }
+  function drawCrit() {
+    for (const kind of ['inter', 'intra']) {
+      $('crit-' + kind).innerHTML = critDraft[kind].map((c, i) => `
+        <div class="critrow" data-kind="${kind}" data-i="${i}">
+          <span class="sub">${i + 1}.</span>
+          <input type="text" data-f="label" value="${esc(c.label)}" placeholder="面向名稱">
+          <input type="text" data-f="description" value="${esc(c.description || '')}" placeholder="說明（選填，學生會看到）">
+          <select data-f="is_text"><option value="0" ${c.is_text ? '' : 'selected'}>分數</option><option value="1" ${c.is_text ? 'selected' : ''}>填空</option></select>
+          <span class="row" style="gap:4px"><button class="ghost small" data-mv="-1" title="上移">↑</button><button class="ghost small" data-mv="1" title="下移">↓</button><button class="danger small" data-del title="刪除">✕</button></span>
+        </div>`).join('') || '<p class="sub">（沒有面向）</p>';
+    }
+    document.querySelectorAll('.critrow').forEach((row) => {
+      const list = critDraft[row.dataset.kind], i = +row.dataset.i;
+      row.querySelectorAll('[data-f]').forEach((inp) => inp.oninput = inp.onchange = () => {
+        list[i][inp.dataset.f] = inp.dataset.f === 'is_text' ? inp.value === '1' : inp.value;
+      });
+      row.querySelectorAll('[data-mv]').forEach((b) => b.onclick = () => {
+        const j = i + +b.dataset.mv; if (j < 0 || j >= list.length) return;
+        [list[i], list[j]] = [list[j], list[i]]; drawCrit();
+      });
+      row.querySelector('[data-del]').onclick = () => { list.splice(i, 1); drawCrit(); };
+    });
+  }
+  document.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => { critDraft[b.dataset.add].push({ label: '', description: '', is_text: false }); drawCrit(); });
+  $('btn-save-basic').onclick = async () => {
+    const patch = { title: $('s-title').value.trim() || A.act.title, scale_max: Math.max(3, Math.min(100, parseInt($('s-scale').value) || 10)),
+                    bonus_max: Math.max(0, parseFloat($('s-bonus').value) || 0), intra_enabled: $('s-intra').checked };
+    if (patch.scale_max !== A.act.scale_max && (A.inter.length || A.intra.length) && !confirm('已經有學生送出評分，改變量尺會讓新舊分數標準不一致。確定要改嗎？')) return;
+    try { A.act = await q(db.from('activities').update(patch).eq('id', A.act.id).select().single()); renderHeader(); renderSetup();
+          $('ok-basic').textContent = '已儲存'; setTimeout(() => $('ok-basic').textContent = '', 2000); }
+    catch (e) { fail(e); }
+  };
+  $('btn-save-crit').onclick = async () => {
+    $('err-crit').textContent = '';
+    const all = [...critDraft.inter.map((c, i) => ({ ...c, kind: 'inter', position: i })), ...critDraft.intra.map((c, i) => ({ ...c, kind: 'intra', position: i }))];
+    if (all.some((c) => !String(c.label).trim())) { $('err-crit').textContent = '有面向沒有名稱'; return; }
+    const keep = new Set(all.filter((c) => c.id).map((c) => c.id));
+    const removed = A.crit.filter((c) => !keep.has(c.id));
+    if (removed.length && (A.inter.length || A.intra.length) && !confirm(`已經有學生送出評分，刪除「${removed.map((c) => c.label).join('、')}」會讓這些分數不再計算。確定嗎？`)) return;
+    try {
+      if (removed.length) await q(db.from('criteria').delete().in('id', removed.map((c) => c.id)));
+      const rows = all.map((c) => ({ ...(c.id ? { id: c.id } : {}), activity_id: A.act.id, kind: c.kind, position: c.position,
+                                     label: c.label.trim(), description: (c.description || '').trim(), is_text: !!c.is_text }));
+      const upd = rows.filter((r) => r.id), ins = rows.filter((r) => !r.id);
+      if (upd.length) await q(db.from('criteria').upsert(upd));
+      if (ins.length) await q(db.from('criteria').insert(ins));
+      await reload(); renderSetup();
+      $('ok-crit').textContent = '已儲存'; setTimeout(() => $('ok-crit').textContent = '', 2000);
+    } catch (e) { fail(e, 'err-crit'); }
+  };
+
+  // ② 名單
+  const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  function newCode() { const a = new Uint8Array(6); crypto.getRandomValues(a); return Array.from(a, (b) => CODE_CHARS[b % CODE_CHARS.length]).join(''); }
+  function groupName(raw) { const s = raw.trim(); return /^\d+$/.test(s) ? `第 ${+s} 組` : s; }
+  let parsed = null;
+  function parseRoster(text) {
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const out = new Map(); const bad = [];
+    lines.forEach((line, i) => {
+      let cols = line.split('\t');
+      if (cols.length < 2) cols = line.split(/[,，]/);
+      if (cols.length < 2) cols = line.split(/\s+/);
+      cols = cols.map((c) => c.trim());
+      if (i === 0 && /組/.test(cols[0]) && /名/.test(cols[1] || '')) return; // 標題列
+      if (cols.length < 2 || !cols[0] || !cols[1]) { bad.push(i + 1); return; }
+      const g = groupName(cols[0]);
+      if (!out.has(g)) out.set(g, []);
+      out.get(g).push({ name: cols[1], student_no: cols[2] || '' });
+    });
+    return { groups: [...out.entries()].map(([name, members]) => ({ name, members })), bad };
+  }
+  $('btn-import').onclick = () => {
+    $('err-roster').textContent = '';
+    parsed = parseRoster($('roster-text').value);
+    const n = parsed.groups.reduce((s, g) => s + g.members.length, 0);
+    $('import-preview').textContent = parsed.groups.length
+      ? `${parsed.groups.length} 組、${n} 人：` + parsed.groups.map((g) => `${g.name}（${g.members.length}）`).join('、') : '';
+    if (parsed.bad.length) $('err-roster').textContent = `第 ${parsed.bad.join('、')} 行看不懂，請確認是「組別、姓名」兩欄以上`;
+    $('import-confirm').classList.toggle('hidden', !parsed.groups.length);
+  };
+  $('btn-import-go').onclick = async () => {
+    if (!parsed?.groups.length) return;
+    if (A.groups.length && !confirm(A.inter.length || A.intra.length
+        ? '⚠ 已經有學生送出評分！匯入新名單會刪除所有評分與舊代碼，確定嗎？'
+        : '匯入會取代目前的名單，並產生新的代碼。確定嗎？')) return;
+    try {
+      if (A.groups.length) await q(db.from('groups').delete().eq('activity_id', A.act.id));
+      for (const [gi, g] of parsed.groups.entries()) {
+        let row, tries = 0;
+        while (!row) {
+          const { data, error } = await db.from('groups').insert({ activity_id: A.act.id, position: gi, name: g.name, code: newCode() }).select().single();
+          if (!error) row = data; else if (error.code !== '23505' || ++tries > 5) throw error;
+        }
+        await q(db.from('members').insert(g.members.map((m, mi) => ({ group_id: row.id, position: mi, name: m.name, student_no: m.student_no }))));
+      }
+      $('roster-text').value = ''; $('import-preview').textContent = ''; $('import-confirm').classList.add('hidden'); parsed = null;
+      await reload(); renderRoster();
+    } catch (e) { fail(e, 'err-roster'); }
+  };
+  function renderRoster() {
+    $('groups').innerHTML = A.groups.map((g) => `<div class="grp"><div class="row" style="justify-content:space-between"><b>${esc(g.name)}</b><span class="code">${esc(g.code)}</span></div>
+      <ul style="margin-top:6px">${g.members.map((m) => `<li><span>${esc(m.name)} <span class="sub">${esc(m.student_no)}</span></span>
+        ${m.claim_token ? `<span><span class="pill ok">已綁定</span> <button class="ghost small" data-reset="${m.id}">重設</button></span>` : '<span class="sub">未登入</span>'}</li>`).join('')}</ul></div>`).join('')
+      || '<p class="sub">還沒有名單，請在上方貼上。</p>';
+    $('groups').querySelectorAll('[data-reset]').forEach((b) => b.onclick = async () => {
+      const m = A.members.find((x) => x.id === b.dataset.reset);
+      if (!confirm(`重設「${m.name}」的手機綁定？之後他可以在任何手機重新選自己的名字（已送出的評分會保留）。`)) return;
+      try { await q(db.from('members').update({ claim_token: null }).eq('id', m.id)); await reload(); renderRoster(); } catch (e) { fail(e); }
+    });
+  }
+
+  // ③ 發給學生
+  const studentUrl = () => new URL('index.html', location.href).href;
+  function renderShare() {
+    const url = studentUrl();
+    $('stu-url').textContent = url;
+    const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+    $('qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+    $('code-list').innerHTML = A.groups.length ? `<table>${A.groups.map((g) => `<tr><td>${esc(g.name)}</td><td><b style="font-family:monospace;font-size:17px;letter-spacing:2px">${esc(g.code)}</b></td></tr>`).join('')}</table>`
+      : '<p class="sub">還沒有名單</p>';
+  }
+  $('btn-copy').onclick = () => navigator.clipboard.writeText(studentUrl()).then(() => { $('btn-copy').textContent = '已複製 ✓'; setTimeout(() => $('btn-copy').textContent = '複製網址', 1500); });
+  function printSlips() {
+    if (!A.groups.length) { alert('還沒有名單'); return; }
+    const url = studentUrl();
+    $('slips').innerHTML = A.groups.flatMap((g) => g.members.length ? [g] : []).map((g) =>
+      `<div class="slip"><div>${esc(A.act.title)}・${esc(g.name)}</div><div class="c">${esc(g.code)}</div><div class="u">${esc(url)}</div></div>`).join('');
+    window.print();
+  }
+  $('btn-print').onclick = printSlips; $('btn-print2').onclick = printSlips;
+
+  // ④ 進度
+  let pollTimer = null;
+  function stopPoll() { clearInterval(pollTimer); pollTimer = null; }
+  async function startPoll() { await refreshProgress(); pollTimer = setInterval(() => { if (!document.hidden) refreshProgress(); }, 15000); }
+  $('btn-prog-refresh').onclick = refreshProgress;
+  async function refreshProgress() {
+    try { await reloadRatings(); } catch (e) { $('prog-time').textContent = '更新失敗：' + e.message; return; }
+    $('prog-time').textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW');
+    const G = A.groups.length, intraOn = A.act.intra_enabled && A.crit.some((c) => c.kind === 'intra');
+    const interBy = countBy(A.inter, 'rater_id'), intraBy = countBy(A.intra, 'rater_id');
+    const rows = A.groups.map((g) => {
+      const need = G - 1, needIn = g.members.length - 1;
+      const cells = g.members.map((m) => {
+        const a = interBy[m.id] || 0, b = intraBy[m.id] || 0;
+        const full = a >= need && (!intraOn || b >= needIn);
+        return `<span class="pill ${full ? 'ok' : a || b ? '' : 'warn'}" title="組間 ${a}/${need}${intraOn ? `・組內 ${b}/${needIn}` : ''}">${esc(m.name)} ${a}/${need}${intraOn ? `・${b}/${needIn}` : ''}</span>`;
+      }).join(' ');
+      const recv = A.inter.filter((r) => r.target_group_id === g.id).length;
+      const possible = A.members.filter((m) => m.group.id !== g.id).length;
+      return `<tr><td><b>${esc(g.name)}</b></td><td class="num">${recv}/${possible}</td>
+        <td><div class="bar"><i style="width:${possible ? Math.round(recv / possible * 100) : 0}%"></i></div></td><td>${cells}</td></tr>`;
+    }).join('');
+    $('prog-table').innerHTML = `<tr><th>組別</th><th class="num">收到幾份組間評分</th><th></th><th>每位組員：組間${intraOn ? '・組內' : ''} 已評幾份</th></tr>${rows}`;
+  }
+  function countBy(arr, k) { const o = {}; arr.forEach((r) => o[r[k]] = (o[r[k]] || 0) + 1); return o; }
+
+  // ⑤ 成績
+  $('r-trim').onchange = renderResults; $('r-show-rater').onchange = renderResults;
+  function scoredCrit(kind) { return A.crit.filter((c) => c.kind === kind && !c.is_text); }
+  function ratingAvg(r, crits) { const v = crits.map((c) => r.scores[c.id]).filter((x) => typeof x === 'number'); return mean(v); }
+  function trimmed(vals) {
+    if (!$('r-trim').checked || vals.length < 5) return vals;
+    const s = [...vals].sort((a, b) => a - b); return s.slice(1, -1);
+  }
+  function computeInter() {
+    const crits = scoredCrit('inter'), max = A.act.scale_max;
+    return A.groups.map((g) => {
+      const rs = A.inter.filter((r) => r.target_group_id === g.id && !A.excluded.has(r.rater_id));
+      const per = crits.map((c) => mean(trimmed(rs.map((r) => r.scores[c.id]).filter((x) => typeof x === 'number'))));
+      const avg = mean(trimmed(rs.map((r) => ratingAvg(r, crits)).filter((x) => x != null)));
+      return { g, n: rs.length, per, avg, score100: avg == null ? null : avg / max * 100 };
+    });
+  }
+  function computeIntra() {
+    const crits = scoredCrit('intra'), max = A.act.scale_max, bonusMax = +A.act.bonus_max;
+    return A.members.map((m) => {
+      const rs = A.intra.filter((r) => r.target_member_id === m.id && !A.excluded.has(r.rater_id));
+      const avg = mean(rs.map((r) => ratingAvg(r, crits)).filter((x) => x != null));
+      return { m, n: rs.length, of: m.group.members.length - 1, avg, bonus: avg == null ? null : avg / max * bonusMax };
+    });
+  }
+  function computeFlags() {
+    const flags = [];
+    const interC = scoredCrit('inter'), intraC = scoredCrit('intra');
+    const groupAvg = {}; A.groups.forEach((g) => { groupAvg[g.id] = mean(A.inter.filter((r) => r.target_group_id === g.id).map((r) => ratingAvg(r, interC)).filter((x) => x != null)); });
+    for (const m of A.members) {
+      const mine = A.inter.filter((r) => r.rater_id === m.id);
+      const why = [];
+      if (mine.length >= 2) {
+        const all = mine.flatMap((r) => interC.map((c) => r.scores[c.id])).filter((x) => typeof x === 'number');
+        if (all.length && all.every((x) => x === all[0])) why.push(`給所有組都是 ${all[0]} 分`);
+        const dev = mean(mine.map((r) => Math.abs(ratingAvg(r, interC) - groupAvg[r.target_group_id])));
+        if (dev != null && dev >= 2.5) why.push(`和全班平均相差 ${fmt(dev, 1)} 分`);
+      }
+      const mineIn = A.intra.filter((r) => r.rater_id === m.id);
+      if (mineIn.length >= 2) {
+        const all = mineIn.flatMap((r) => intraC.map((c) => r.scores[c.id])).filter((x) => typeof x === 'number');
+        if (all.length && all.every((x) => x === all[0]) && all[0] <= Math.ceil(A.act.scale_max * 0.3)) why.push(`給所有組員都只有 ${all[0]} 分`);
+      }
+      if (why.length) flags.push({ m, why });
+    }
+    return flags;
+  }
+  function renderResults() {
+    const max = A.act.scale_max;
+    const interC = scoredCrit('inter');
+    const inter = computeInter();
+    $('r-inter-note').textContent = `各面向為 1~${max} 分的平均；「百分制」= 平均 ÷ ${max} × 100，可直接乘上 40% 計入期中成績。`;
+    $('r-inter').innerHTML = `<tr><th>組別</th><th class="num">評分人數</th>${interC.map((c) => `<th class="num">${esc(c.label)}</th>`).join('')}<th class="num">平均</th><th class="num">百分制</th></tr>` +
+      inter.map((x) => `<tr><td><b>${esc(x.g.name)}</b></td><td class="num">${x.n}</td>${x.per.map((v) => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num"><b>${fmt(x.avg)}</b></td><td class="num"><b>${fmt(x.score100, 1)}</b></td></tr>`).join('');
+
+    const intraOn = A.act.intra_enabled && scoredCrit('intra').length;
+    $('r-intra-card').classList.toggle('hidden', !intraOn);
+    if (intraOn) {
+      const intra = computeIntra();
+      $('r-intra-note').textContent = `額外加分 = 組員給的平均分 ÷ ${max} × ${A.act.bonus_max}（上限 ${A.act.bonus_max} 分）。沒有人評的同學不加分。`;
+      $('r-intra').innerHTML = `<tr><th>組別</th><th>姓名</th><th>學號</th><th class="num">收到幾份</th><th class="num">平均</th><th class="num">額外加分</th></tr>` +
+        intra.map((x) => `<tr><td>${esc(x.m.group.name)}</td><td>${esc(x.m.name)}</td><td class="sub">${esc(x.m.student_no)}</td><td class="num">${x.n}/${x.of}</td><td class="num">${fmt(x.avg)}</td><td class="num"><b>${fmt(x.bonus)}</b></td></tr>`).join('');
+    }
+
+    const flags = computeFlags();
+    $('r-flags').innerHTML = flags.length
+      ? `<tr><th>排除</th><th>學生</th><th>原因</th></tr>` + flags.map((f) => `<tr><td><input type="checkbox" data-ex="${f.m.id}" ${A.excluded.has(f.m.id) ? 'checked' : ''}></td><td>${esc(f.m.group.name)}・${esc(f.m.name)}</td><td>${f.why.map(esc).join('；')}</td></tr>`).join('')
+      : '<tr><td class="sub">目前沒有明顯異常的評分。</td></tr>';
+    $('r-flags').querySelectorAll('[data-ex]').forEach((cb) => cb.onchange = () => { cb.checked ? A.excluded.add(cb.dataset.ex) : A.excluded.delete(cb.dataset.ex); renderResults(); });
+
+    const show = $('r-show-rater').checked;
+    const byId = Object.fromEntries(A.members.map((m) => [m.id, m]));
+    const textCrit = A.crit.filter((c) => c.is_text);
+    const block = (title, rs) => {
+      const items = rs.flatMap((r) => commentTexts(r, textCrit.filter((c) => c.kind === kindOf(r))).map((t) => ({ r, t })));
+      return items.length ? `<h3>${esc(title)}</h3>` + items.map(({ r, t }) => `<div class="comment">${esc(t)}${show ? `<div class="by">— ${esc(byId[r.rater_id]?.name || '?')}</div>` : ''}</div>`).join('') : '';
+    };
+    const html = A.groups.map((g) => block(`給 ${g.name}`, A.inter.filter((r) => r.target_group_id === g.id))).join('')
+      + A.members.map((m) => block(`給 ${m.group.name}・${m.name}（組內）`, A.intra.filter((r) => r.target_member_id === m.id))).join('');
+    $('r-comments').innerHTML = html || '<p class="sub" style="margin-top:8px">還沒有文字回饋。</p>';
+  }
+  const kindOf = (r) => (r.target_group_id ? 'inter' : 'intra');
+  function commentTexts(r, textCrit) {
+    if (!r.comment) return [];
+    try { const o = JSON.parse(r.comment); if (o && typeof o === 'object') return textCrit.filter((c) => o[c.id]).map((c) => (textCrit.length > 1 ? `【${c.label}】` : '') + o[c.id]).concat(Object.keys(o).filter((k) => !textCrit.some((c) => c.id === k)).map((k) => o[k])); }
+    catch {}
+    return [r.comment];
+  }
+
+  // CSV（加 BOM，Excel 直接開不會亂碼）
+  function downloadCsv(name, rows) {
+    const csv = rows.map((r) => r.map((v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `${A.act.title}_${name}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  $('btn-csv-inter').onclick = () => {
+    const interC = scoredCrit('inter'), inter = computeInter();
+    // 一人一列，方便直接貼進成績單
+    const rows = [['組別', '姓名', '學號', ...interC.map((c) => c.label), '平均', '組間互評百分制']];
+    inter.forEach((x) => x.g.members.forEach((m) => rows.push([x.g.name, m.name, m.student_no, ...x.per.map((v) => fmt(v)), fmt(x.avg), fmt(x.score100, 1)])));
+    downloadCsv('組間互評', rows);
+  };
+  $('btn-csv-intra').onclick = () => {
+    const rows = [['組別', '姓名', '學號', '收到幾份', '平均', '額外加分']];
+    computeIntra().forEach((x) => rows.push([x.m.group.name, x.m.name, x.m.student_no, x.n, fmt(x.avg), fmt(x.bonus)]));
+    downloadCsv('組內加分', rows);
+  };
+  $('btn-csv-comments').onclick = () => {
+    const show = $('r-show-rater').checked, byId = Object.fromEntries(A.members.map((m) => [m.id, m])), textCrit = A.crit.filter((c) => c.is_text);
+    const rows = [['類型', '對象', ...(show ? ['填寫者'] : []), '內容']];
+    A.groups.forEach((g) => A.inter.filter((r) => r.target_group_id === g.id).forEach((r) => commentTexts(r, textCrit.filter((c) => c.kind === 'inter')).forEach((t) => rows.push(['組間', g.name, ...(show ? [byId[r.rater_id]?.name] : []), t]))));
+    A.members.forEach((m) => A.intra.filter((r) => r.target_member_id === m.id).forEach((r) => commentTexts(r, textCrit.filter((c) => c.kind === 'intra')).forEach((t) => rows.push(['組內', `${m.group.name} ${m.name}`, ...(show ? [byId[r.rater_id]?.name] : []), t]))));
+    downloadCsv('文字回饋', rows);
+  };
+
+  db.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') view('login'); });
+  boot().catch((e) => fail(e));
+})();
+</script>
+</body>
+</html>
