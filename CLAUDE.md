@@ -8,6 +8,8 @@ Jessica 的個人小工具集。使用者稱呼 Claude 為「JARVIS」，以繁�
 - 新工具要在根目錄 `index.html` 入口頁加一張卡片，並更新根 `README.md` 的工具清單
 - 共用函式庫放 `shared/vendor/`，工具用相對路徑引用（`../shared/vendor/...`）
 - 純靜態網頁、零建置流程、零後端；使用者的檔案只在瀏覽器內處理，不上傳任何地方——這是核心承諾，不要破壞
+- 例外：`peer-review/`（同儕互評）需要收集全班資料，經使用者同意使用她自己的 Supabase 專案 `japp`；學生端只能呼叫 `student_*` 函式，不能直接讀寫資料表。其他工具仍維持純前端
+- 沙箱代理會擋 `*.supabase.co`，前端無法在沙箱直接連線測試；資料庫邏輯用 Supabase MCP 的 `execute_sql`（`set local role anon` 模擬學生）測，介面用 Playwright 攔截 `supabase.js` 換成記憶體假資料庫測
 - 需要第三方函式庫時下載到 `shared/vendor/`（沙箱網路擋 CDN，可用 `npm pack` 從 npm registry 取得），不要在網頁中引用 CDN
 
 ## 部署

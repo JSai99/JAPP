@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>同儕互評</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f4f5f7; --card: #fff; --line: #dfe2e6; --text: #1f2328; --dim: #67707a;
+  --accent: #3b6fe0; --accent-soft: #e8efff; --seg: #eceff3; --ok: #1f8a4c; --ok-soft: #e3f5ea; --warn: #b4540a; --err: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1d2023; --card: #2a2e32; --line: #3d4247; --text: #e8eaed; --dim: #9aa0a6;
+          --accent: #6b9bff; --accent-soft: #23314f; --seg: #363b41; --ok: #4cc27f; --ok-soft: #1e3a2a; --warn: #f0a050; --err: #ff6b6b; }
+}
+body {
+  font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.55;
+  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+}
+main { max-width: 560px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 4px 0 2px; }
+h2 { font-size: 17px; margin-bottom: 10px; }
+.sub { color: var(--dim); font-size: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 16px; margin-top: 14px; }
+label.f { display: block; font-weight: 600; margin-bottom: 6px; }
+input[type=text], textarea {
+  width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+}
+input.code { text-transform: uppercase; letter-spacing: 4px; font-size: 22px; text-align: center; font-weight: 700; }
+textarea { min-height: 90px; resize: vertical; }
+button {
+  font: inherit; font-size: 16px; border: 0; border-radius: 10px; padding: 12px 16px; cursor: pointer;
+  background: var(--accent); color: #fff; font-weight: 600;
+}
+button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button:disabled { opacity: .45; cursor: default; }
+.full { width: 100%; margin-top: 12px; }
+.err { color: var(--err); font-size: 14px; margin-top: 10px; min-height: 1em; white-space: pre-line; }
+.names { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 8px; }
+.names button { background: var(--accent-soft); color: var(--text); font-weight: 600; padding: 16px 8px; }
+.names button.taken { background: var(--bg); color: var(--dim); font-weight: 400; }
+.tabs { display: flex; gap: 8px; margin-top: 14px; }
+.tabs button { flex: 1; background: var(--card); color: var(--text); border: 1px solid var(--line); }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.list { display: grid; gap: 10px; margin-top: 12px; }
+.item { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; width: 100%;
+        color: var(--text); font-weight: 600; text-align: left; }
+.item .tag { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.item.done { cursor: default; }
+.item.done .tag { background: var(--ok-soft); color: var(--ok); }
+.crit { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.crit:last-of-type { border-bottom: 0; }
+.crit .q { font-weight: 700; }
+.crit .d { color: var(--dim); font-size: 13px; margin-top: 2px; }
+.scale { display: flex; gap: 4px; margin-top: 12px; }
+.scale button { flex: 1; height: 46px; padding: 0; border-radius: 4px; background: var(--seg); color: var(--dim);
+                font-weight: 700; font-size: 15px; transition: background .15s, color .15s; }
+.scale button:first-child { border-radius: 12px 4px 4px 12px; }
+.scale button:last-child { border-radius: 4px 12px 12px 4px; }
+.scale button.fill { background: var(--accent); color: #fff; }
+.scale button.fill.cur { filter: brightness(.88); }
+.scale-read { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--dim); margin-top: 6px; min-height: 1.4em; }
+.scale-read b { color: var(--accent); font-size: 15px; }
+.picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
+.picks button { background: var(--seg); color: var(--text); font-weight: 600; padding: 14px 8px; }
+.pickcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+.pickcard.done { opacity: .7; }
+.ptag { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.ptag.ok { background: var(--ok-soft); color: var(--ok); }
+.anon { font-size: 13px; color: var(--ok); margin-top: 8px; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.linkbtn { background: none; color: var(--accent); padding: 4px 0; font-size: 14px; font-weight: 600; }
+.progress { font-size: 14px; color: var(--dim); margin-top: 6px; }
+.banner { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; margin-top: 14px; font-size: 15px; }
+.banner.warn { background: #fff4e5; color: #7a3d00; }
+@media (prefers-color-scheme: dark) { .banner.warn { background: #3a2a14; color: #ffd29a; } }
+.hidden { display: none !important; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+         background: var(--ok); color: #fff; padding: 10px 18px; border-radius: 99px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+</style>
+</head>
+<body>
+<main>
+  <!-- 1. 輸入組別代碼 -->
+  <section id="step-code">
+    <h1>同儕互評</h1>
+    <p class="sub">請輸入老師發給你們組的代碼</p>
+    <div class="card">
+      <label class="f" for="code">組別代碼</label>
+      <input id="code" class="code" type="text" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例：K7M2QX">
+      <button id="btn-code" class="full">下一步</button>
+      <p class="err" id="err-code"></p>
+    </div>
+  </section>
+
+  <!-- 2. 選自己的名字 -->
+  <section id="step-name" class="hidden">
+    <div class="top">
+      <div><h1 id="title-name"></h1><p class="sub" id="group-name"></p></div>
+      <button class="linkbtn" id="back-code">換代碼</button>
+    </div>
+    <div class="card">
+      <h2>你是哪一位？</h2>
+      <p class="sub">點自己的名字。選定後這支手機就代表你，其他人無法再選這個名字。</p>
+      <div class="names" id="names"></div>
+      <p class="err" id="err-name"></p>
+    </div>
+  </section>
+
+  <!-- 3. 評分總覽 -->
+  <section id="step-home" class="hidden">
+    <div class="top">
+      <div><h1 id="title-home"></h1><p class="sub" id="who"></p></div>
+      <button class="linkbtn" id="btn-refresh">重新整理</button>
+    </div>
+    <div id="closed" class="banner warn hidden">老師還沒開放評分（或評分已結束）。開放後按右上角「重新整理」。</div>
+    <div class="tabs" id="tabs">
+      <button data-tab="inter" class="on">評其他組</button>
+      <button data-tab="intra">評組員</button>
+    </div>
+    <p class="anon hidden" id="anon-note">🔒 組內互評完全匿名，連老師也看不到是誰給的分數。</p>
+    <p class="progress" id="progress"></p>
+    <div id="picks"></div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <!-- 4. 評分表單 -->
+  <section id="step-form" class="hidden">
+    <div class="top">
+      <div><p class="sub" id="form-kind"></p><h1 id="form-target"></h1></div>
+      <button class="linkbtn" id="back-home">返回</button>
+    </div>
+    <div class="card">
+      <div id="form-crit"></div>
+    </div>
+    <button id="btn-submit" class="full">送出</button>
+    <p class="sub" style="text-align:center;margin-top:8px">送出後無法修改，請確認後再送出</p>
+    <p class="err" id="err-form"></p>
+  </section>
+</main>
+<div class="toast hidden" id="toast"></div>
+
+<script src="../shared/vendor/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+  const db = supabase.createClient(PEER_CONFIG.supabaseUrl, PEER_CONFIG.supabaseKey, { auth: { persistSession: false } });
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // localStorage 可能被封鎖（無痕模式等），一律包起來
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem('peer:' + k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem('peer:' + k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem('peer:' + k); } catch {} },
+  };
+  function deviceToken() {
+    let t = store.get('device');
+    if (!t) {
+      const a = new Uint8Array(16); crypto.getRandomValues(a);
+      t = Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
+      store.set('device', t);
+    }
+    return t;
+  }
+  const S = { code: '', info: null, me: null, done: { inter: new Set(), intra: new Set(), pick: new Set() }, tab: 'inter', target: null, answers: {} };
+
+  function show(step) {
+    for (const s of ['code', 'name', 'home', 'form']) $('step-' + s).classList.toggle('hidden', s !== step);
+    window.scrollTo(0, 0);
+  }
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+    clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 2200);
+  }
+  function errMsg(e) {
+    const m = e?.message || String(e);
+    if (/Failed to fetch|NetworkError|network/i.test(m)) return '連線失敗，請確認網路後再試一次';
+    return m;
+  }
+  async function rpc(name, args) {
+    const { data, error } = await db.rpc(name, args);
+    if (error) throw error;
+    return data;
+  }
+
+  // ── 1. 代碼 ──
+  async function enterCode(code) {
+    $('err-code').textContent = '';
+    code = code.trim().toUpperCase();
+    if (!code) { $('err-code').textContent = '請輸入代碼'; return; }
+    $('btn-code').disabled = true;
+    try {
+      S.info = await rpc('student_enter', { p_code: code });
+      S.code = code;
+      store.set('code', code);
+      const saved = store.get('me:' + code);
+      if (saved && S.info.members.some((m) => m.id === saved)) { await claim(saved, true); }
+      else renderNames();
+    } catch (e) { $('err-code').textContent = errMsg(e); }
+    finally { $('btn-code').disabled = false; }
+  }
+  $('btn-code').onclick = () => enterCode($('code').value);
+  $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') enterCode($('code').value); });
+  $('back-code').onclick = () => { store.del('code'); show('code'); };
+
+  // ── 2. 選名字 ──
+  function renderNames() {
+    $('title-name').textContent = S.info.activity.title;
+    $('group-name').textContent = S.info.group.name;
+    $('err-name').textContent = '';
+    $('names').innerHTML = S.info.members.map((m) =>
+      `<button data-id="${m.id}" class="${m.claimed ? 'taken' : ''}">${esc(m.name)}${m.claimed ? '<br><small>已有人選</small>' : ''}</button>`).join('');
+    $('names').querySelectorAll('button').forEach((b) => b.onclick = () => {
+      const m = S.info.members.find((x) => x.id === b.dataset.id);
+      if (!confirm(`確定你是「${m.name}」嗎？\n選定後這支手機就代表你。`)) return;
+      claim(m.id, false);
+    });
+    show('name');
+  }
+  async function claim(memberId, silent) {
+    try {
+      const r = await rpc('student_claim', { p_code: S.code, p_member: memberId, p_token: deviceToken() });
+      S.me = S.info.members.find((m) => m.id === memberId);
+      S.done.inter = new Set(r.inter_done); S.done.intra = new Set(r.intra_done); S.done.pick = new Set(r.pick_done || []);
+      store.set('me:' + S.code, memberId);
+      renderHome();
+    } catch (e) {
+      if (silent) { store.del('me:' + S.code); renderNames(); }
+      $('err-name').textContent = errMsg(e);
+      if (!silent) show('name');
+    }
+  }
+
+  // ── 3. 總覽 ──
+  const qt = (c) => c.qtype || (c.is_text ? 'text' : 'score');
+  const crits = (kind) => S.info.criteria.filter((c) => c.kind === kind && qt(c) !== 'pick');
+  const pickQs = (kind) => S.info.criteria.filter((c) => c.kind === kind && qt(c) === 'pick');
+  const WORDS5 = ['待加強', '尚可', '普通', '良好', '優秀'];
+  const word = (v) => (S.info.activity.scale_max === 5 ? WORDS5[v - 1] : '');
+  function targets(kind) {
+    return kind === 'inter' ? S.info.other_groups : S.info.members.filter((m) => m.id !== S.me.id);
+  }
+  function renderHome() {
+    const a = S.info.activity;
+    $('title-home').textContent = a.title;
+    $('who').textContent = `${S.info.group.name}・${S.me.name}`;
+    $('closed').classList.toggle('hidden', a.is_open);
+    const intraOn = a.intra_enabled && S.info.criteria.some((c) => c.kind === 'intra') && targets('intra').length > 0;
+    $('tabs').classList.toggle('hidden', !intraOn);
+    if (!intraOn) S.tab = 'inter';
+    $('tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
+    const hasRate = crits(S.tab).length > 0;
+    const list = hasRate ? targets(S.tab) : [], done = S.done[S.tab];
+    const pq = pickQs(S.tab);
+    const total = list.length + pq.length;
+    const n = list.filter((t) => done.has(t.id)).length + pq.filter((c) => S.done.pick.has(c.id)).length;
+    $('anon-note').classList.toggle('hidden', S.tab !== 'intra');
+    $('progress').textContent = n === total && total
+      ? `全部完成（${n}/${total}），謝謝你！`
+      : `已完成 ${n}/${total}${S.tab === 'inter' ? '　每組報告結束後再評' : ''}`;
+    renderPicks(pq);
+    $('list').innerHTML = list.map((t) => {
+      const d = done.has(t.id);
+      const draft = !d && store.get(`draft:${S.code}:${S.me.id}:${t.id}`);
+      return `<button class="item ${d ? 'done' : ''}" data-id="${t.id}" ${d ? 'disabled' : ''}>
+        <span>${esc(t.name)}</span><span class="tag">${d ? '已送出 ✓' : draft ? '草稿' : '去評分'}</span></button>`;
+    }).join('');
+    $('list').querySelectorAll('.item:not(.done)').forEach((b) => b.onclick = () => openForm(S.tab, b.dataset.id));
+    show('home');
+  }
+  $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; renderHome(); });
+  $('btn-refresh').onclick = async () => {
+    try {
+      S.info = await rpc('student_enter', { p_code: S.code });
+      await claim(S.me.id, false);
+      toast('已更新');
+    } catch (e) { alertErr(e); }
+  };
+  function alertErr(e) { $('progress').textContent = errMsg(e); }
+
+  function renderPicks(pq) {
+    const opts = targets(S.tab);
+    $('picks').innerHTML = pq.map((c) => {
+      const d = S.done.pick.has(c.id);
+      return `<div class="pickcard ${d ? 'done' : ''}" data-c="${c.id}">
+        <div class="top"><b>${esc(c.label)}</b><span class="ptag ${d ? 'ok' : ''}">${d ? '已投 ✓' : '選一個'}</span></div>
+        ${c.description ? `<div class="sub">${esc(c.description)}</div>` : ''}
+        ${d ? '' : `<div class="picks">${opts.map((o) => `<button data-t="${o.id}">${esc(o.name)}</button>`).join('')}</div>`}
+      </div>`;
+    }).join('');
+    $('picks').querySelectorAll('.pickcard:not(.done) .picks button').forEach((b) => b.onclick = async () => {
+      const cid = b.closest('.pickcard').dataset.c, c = S.info.criteria.find((x) => x.id === cid);
+      if (!S.info.activity.is_open) { toast('老師還沒開放評分'); return; }
+      if (!confirm(`「${c.label}」\n確定選「${b.textContent}」？送出後無法修改。`)) return;
+      try {
+        await rpc('student_pick', { p_code: S.code, p_member: S.me.id, p_token: deviceToken(), p_criterion: cid, p_target: b.dataset.t });
+        S.done.pick.add(cid); toast('已送出 ✓'); renderHome();
+      } catch (e) { $('progress').textContent = errMsg(e); if (/回答過/.test(e.message)) { S.done.pick.add(cid); renderHome(); } }
+    });
+  }
+
+  // ── 4. 評分表單 ──
+  function openForm(kind, id) {
+    if (!S.info.activity.is_open) { toast('老師還沒開放評分'); return; }
+    const t = targets(kind).find((x) => x.id === id);
+    S.target = { kind, id };
+    const key = `draft:${S.code}:${S.me.id}:${id}`;
+    S.answers = store.get(key) || {};
+    const max = S.info.activity.scale_max;
+    $('form-kind').textContent = kind === 'inter' ? '評其他組' : '評組員';
+    $('form-target').textContent = t.name;
+    $('err-form').textContent = '';
+    $('form-crit').innerHTML = crits(kind).map((c) => `
+      <div class="crit" data-id="${c.id}">
+        <div class="q">${esc(c.label)}${qt(c) === 'text' ? ' <span class="sub">（選填）</span>' : ''}</div>
+        ${c.description ? `<div class="d">${esc(c.description)}</div>` : ''}
+        ${qt(c) === 'text'
+          ? `<textarea data-text="${c.id}" placeholder="寫下具體的觀察或建議">${esc(S.answers[c.id] || '')}</textarea>`
+          : `<div class="scale" role="radiogroup" aria-label="${esc(c.label)}">${
+              Array.from({ length: max }, (_, i) => i + 1).map((v) =>
+                `<button type="button" role="radio" aria-label="${v} 分${word(v) ? '，' + word(v) : ''}" data-v="${v}">${v}</button>`).join('')}</div>
+             <div class="scale-read"><span>1 = ${max === 5 ? '待加強' : '最低'}</span><b></b><span>${max} = ${max === 5 ? '優秀' : '最高'}</span></div>`}
+      </div>`).join('');
+    $('form-crit').querySelectorAll('.crit').forEach((el) => {
+      const cid = el.dataset.id;
+      const paint = () => {
+        const v = S.answers[cid] || 0;
+        el.querySelectorAll('.scale button').forEach((x) => {
+          const n = +x.dataset.v;
+          x.classList.toggle('fill', n <= v); x.classList.toggle('cur', n === v); x.setAttribute('aria-checked', n === v);
+        });
+        const r = el.querySelector('.scale-read b'); if (r) r.textContent = v ? `${v} 分${word(v) ? '・' + word(v) : ''}` : '';
+      };
+      el.querySelectorAll('.scale button').forEach((b) => b.onclick = () => {
+        S.answers[cid] = +b.dataset.v;
+        $('err-form').textContent = '';
+        paint(); store.set(key, S.answers);
+      });
+      paint();
+      const ta = el.querySelector('textarea');
+      if (ta) ta.oninput = () => { S.answers[cid] = ta.value; store.set(key, S.answers); };
+    });
+    show('form');
+  }
+  $('back-home').onclick = renderHome;
+  $('btn-submit').onclick = async () => {
+    const { kind, id } = S.target;
+    const scores = {}, texts = {};
+    const missing = [];
+    for (const c of crits(kind)) {
+      if (qt(c) === 'text') { const v = (S.answers[c.id] || '').trim(); if (v) texts[c.id] = v; }
+      else if (S.answers[c.id]) scores[c.id] = S.answers[c.id];
+      else missing.push(c.label);
+    }
+    if (missing.length) { $('err-form').textContent = '還沒評分：' + missing.join('、'); return; }
+    const name = targets(kind).find((x) => x.id === id).name;
+    if (!confirm(`確定送出對「${name}」的評分？送出後無法修改。`)) return;
+    $('btn-submit').disabled = true;
+    try {
+      await rpc(kind === 'inter' ? 'student_rate_group' : 'student_rate_member', {
+        p_code: S.code, p_member: S.me.id, p_token: deviceToken(), p_target: id,
+        p_scores: scores, p_comment: Object.keys(texts).length ? JSON.stringify(texts) : '',
+      });
+      S.done[kind].add(id);
+      store.del(`draft:${S.code}:${S.me.id}:${id}`);
+      toast('已送出 ✓');
+      renderHome();
+    } catch (e) {
+      $('err-form').textContent = errMsg(e);
+      if (/已經評過/.test(e.message)) { S.done[kind].add(id); }
+    } finally { $('btn-submit').disabled = false; }
+  };
+
+  // ── 啟動：網址帶 ?code= 或上次輸入過的代碼 ──
+  const urlCode = new URLSearchParams(location.search).get('code');
+  const start = urlCode || store.get('code');
+  if (start) { $('code').value = start; enterCode(start); }
+  else show('code');
+})();
+</script>
+</body>
+</html>
