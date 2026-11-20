@@ -134,11 +134,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       <span class="sub" id="open-hint"></span>
     </div>
     <div class="tabs" id="tabs">
-      <button data-tab="setup" class="on">① 設定</button>
-      <button data-tab="roster">② 名單與代碼</button>
-      <button data-tab="share">③ 發給學生</button>
-      <button data-tab="progress">④ 填寫進度</button>
-      <button data-tab="results">⑤ 成績</button>
+      <button data-tab="setup" class="on">設定</button>
+      <button data-tab="roster">名單與代碼</button>
+      <button data-tab="share">發給學生</button>
+      <button data-tab="progress">填寫進度</button>
+      <button data-tab="results">成績</button>
     </div>
 
     <!-- ① 設定 -->
@@ -169,6 +169,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         <button class="ghost small" data-add="intra" style="margin-top:8px">＋ 新增面向</button>
         <div class="row" style="margin-top:14px"><button id="btn-save-crit">儲存評分面向</button><span class="okmsg" id="ok-crit"></span></div>
         <p class="err" id="err-crit"></p>
+      </div>
+      <div class="card">
+        <h2>刪除活動</h2>
+        <p class="sub">會一併刪除這個活動的面向、名單、代碼與所有評分，刪除後無法復原。</p>
+        <button class="danger" id="btn-del-act" style="margin-top:10px">🗑 刪除此活動</button>
       </div>
     </div>
 
@@ -370,12 +375,21 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   }
   $('btn-open').onclick = async () => {
     const to = !A.act.is_open;
-    if (to && !A.groups.length) { alert('請先到「② 名單與代碼」匯入名單'); return; }
+    if (to && !A.groups.length) { alert('請先到「名單與代碼」匯入名單'); return; }
     if (!to && !confirm('確定關閉評分？學生將無法再送出。')) return;
     try { await q(db.from('activities').update({ is_open: to }).eq('id', A.act.id)); A.act.is_open = to; renderHeader(); }
     catch (e) { fail(e); }
   };
   $('btn-back').onclick = loadList;
+  $('btn-del-act').onclick = async () => {
+    const t = A.act.title;
+    const n = A.inter.length + A.intraDone.length + A.pickDone.length;
+    const warn = n ? `⚠ 這個活動已經有 ${n} 筆學生評分，刪除後全部消失。\n\n` : '';
+    if (!confirm(`${warn}確定刪除「${t}」？刪除後無法復原。`)) return;
+    if (n && prompt(`請輸入活動名稱「${t}」以確認刪除`) !== t) { alert('名稱不符，已取消'); return; }
+    try { await q(db.from('activities').delete().eq('id', A.act.id)); A.tab = 'setup'; loadList(); }
+    catch (e) { fail(e); }
+  };
   $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
   function setTab(t) {
     A.tab = t;
