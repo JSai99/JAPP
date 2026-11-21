@@ -4,5 +4,5 @@ window.PEER_CONFIG = {
   supabaseUrl: 'https://pqedztnyztqixieehzew.supabase.co',
   supabaseKey: 'sb_publishable_tXVmTR-jby9msRQUJ2gfbw_nSuARd1a',
   // 給學生的網址（QR code、紙條用）。放在 Vercel，不顯示 GitHub 網址
-  studentUrl: 'https://class-review-seven.vercel.app/',
+  studentUrl: 'https://reviewclass-group.vercel.app/',
 };
