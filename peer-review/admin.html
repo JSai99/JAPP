@@ -42,6 +42,7 @@ button:disabled { opacity: .45; cursor: default; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
 .tabs button { background: var(--card); color: var(--text); border: 1px solid var(--line); }
 .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ghost.small.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; vertical-align: top; }
 th { color: var(--dim); font-weight: 600; font-size: 13px; white-space: nowrap; }
@@ -87,6 +88,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ordlist .arrow { color: var(--dim); }
 .ordpool { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .ordpool button { padding: 0; background: none; border: 0; cursor: pointer; }
+.pace { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.pace .reqsw { font-size: 15px; color: var(--text); font-weight: 600; }
+.pace .sub { margin: 6px 0 8px; }
+.ordlist .slot.live { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ordlist .slot .pill { font-size: 12px; }
 .ordpool button:hover .gchip { filter: brightness(1.08); transform: translateY(-1px); }
 .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
 .grp { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
@@ -253,9 +259,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <div id="t-progress" class="hidden">
       <div class="card">
         <div class="row"><h2 style="margin:0">報告順序</h2><span style="flex:1"></span><button class="ghost small" id="btn-ord-rand">🎲 隨機排</button><button class="ghost small" id="btn-ord-clear">清除</button></div>
-        <p class="sub">抽到哪一組，就依序點那一組。學生頁「評其他組」會照這個順序排，約 20 秒內自動更新。</p>
+        <p class="sub">抽到哪一組，就依序點那一組。學生頁「評其他組」會照這個順序排，約 10 秒內自動更新。</p>
         <div class="ordlist" id="ord-done"></div>
         <div class="ordpool" id="ord-pool"></div>
+        <div class="pace">
+          <label class="reqsw"><input type="checkbox" id="pace-on"> 逐組開放組間評分</label>
+          <p class="sub" id="pace-note"></p>
+          <div class="row" id="pace-act"></div>
+        </div>
       </div>
       <div class="card">
         <div class="row"><h2 style="margin:0">填寫進度</h2><span class="sub" id="prog-time"></span><span style="flex:1"></span><button class="ghost small" id="btn-prog-refresh">重新整理</button></div>
@@ -628,12 +639,17 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   function renderRoster() {
     $('groups').innerHTML = A.groups.map((g) => `<div class="grp" style="border-top:5px solid ${groupColor(g.position)}"><div class="row" style="justify-content:space-between">${groupChip(g.name, g.position)}<span class="code">${esc(g.code)}</span></div>
       <ul style="margin-top:6px">${g.members.map((m) => `<li><span>${esc(m.name)} <span class="sub">${esc(m.student_no)}</span></span>
-        ${m.claim_token ? `<span><span class="pill ok">已綁定</span> <button class="ghost small" data-reset="${m.id}">重設</button></span>` : '<span class="sub">未登入</span>'}</li>`).join('')}</ul></div>`).join('')
+        <span>${m.claim_token ? `<span class="pill ok">已綁定</span> <button class="ghost small" data-reset="${m.id}">重設</button>` : '<span class="sub">未登入</span>'}${A.act.inter_paced ? ` <button class="ghost small ${m.makeup ? 'on' : ''}" data-makeup="${m.id}" title="不受逐組開放與晚到限制">${m.makeup ? '✓ 可補評' : '補評'}</button>` : ''}</span></li>`).join('')}</ul></div>`).join('')
       || '<p class="sub">還沒有名單，請在上方貼上。</p>';
     $('groups').querySelectorAll('[data-reset]').forEach((b) => b.onclick = async () => {
       const m = A.members.find((x) => x.id === b.dataset.reset);
       if (!confirm(`重設「${m.name}」的手機綁定？之後他可以在任何手機重新選自己的名字（已送出的評分會保留）。`)) return;
       try { await q(db.from('members').update({ claim_token: null }).eq('id', m.id)); await reload(); renderRoster(); } catch (e) { fail(e); }
+    });
+    $('groups').querySelectorAll('[data-makeup]').forEach((b) => b.onclick = async () => {
+      const m = A.members.find((x) => x.id === b.dataset.makeup);
+      if (!m.makeup && !confirm(`讓「${m.name}」補評？他可以評所有組別，不受逐組開放與晚到限制（例：公假、手機出狀況）。`)) return;
+      try { await q(db.from('members').update({ makeup: !m.makeup }).eq('id', m.id)); await reload(); renderRoster(); } catch (e) { fail(e); }
     });
   }
 
@@ -664,12 +680,36 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   function renderOrder() {
     const done = A.groups.filter((g) => g.report_order).sort((a, b) => a.report_order - b.report_order);
     const pool = A.groups.filter((g) => !g.report_order);
-    $('ord-done').innerHTML = done.length ? done.map((g, i) => `${i ? '<span class="arrow">→</span>' : ''}<span class="slot"><b>${i + 1}</b>${groupChip(g.name, g.position, 'sm')}<button class="ghost small" data-unord="${g.id}" title="移回未排">✕</button></span>`).join('')
+    const paced = !!A.act.inter_paced;
+    $('ord-done').innerHTML = done.length ? done.map((g, i) => `${i ? '<span class="arrow">→</span>' : ''}<span class="slot ${paced && g.inter_opened_at ? 'live' : ''}"><b>${i + 1}</b>${groupChip(g.name, g.position, 'sm')}${paced && g.inter_opened_at ? `<span class="pill ok">已開放 ${new Date(g.inter_opened_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</span><button class="ghost small" data-unopen="${g.id}" title="撤回開放">↶</button>` : `<button class="ghost small" data-unord="${g.id}" title="移回未排">✕</button>`}</span>`).join('')
       : '<span class="sub">還沒排。下面點選第一個報告的組別。</span>';
     $('ord-pool').innerHTML = pool.length ? pool.map((g) => `<button data-ord="${g.id}" title="排在下一個">${groupChip(g.name, g.position)}</button>`).join('')
       : '<span class="sub">全部排好了 ✓</span>';
     $('ord-pool').querySelectorAll('[data-ord]').forEach((b) => b.onclick = () => saveOrder([...done.map((g) => g.id), b.dataset.ord]));
     $('ord-done').querySelectorAll('[data-unord]').forEach((b) => b.onclick = () => saveOrder(done.map((g) => g.id).filter((id) => id !== b.dataset.unord)));
+    $('ord-done').querySelectorAll('[data-unopen]').forEach((b) => b.onclick = () => {
+      const g = A.groups.find((x) => x.id === b.dataset.unopen);
+      if (confirm(`撤回「${g.name}」的開放？已送出的評分會保留，之後重新開放時，開放時間以新的為準。`)) setOpened(g, null);
+    });
+    // 逐組開放
+    $('pace-on').checked = paced;
+    $('pace-note').textContent = paced
+      ? '每組開始報告時按下方按鈕，學生約 10 秒內就能評那一組，之後一直可評到妳結束評分。晚到的同學不評他進來前就開始報告的組（可在「名單」為個別同學開補評）。組內互評不受影響。'
+      : '開啟後，組間評分要等妳按下開放才能評；建議上課一開始先請全班掃碼選名字。';
+    const next = paced ? done.find((g) => !g.inter_opened_at) : null;
+    $('pace-act').innerHTML = !paced ? ''
+      : !done.length ? '<span class="sub">請先排好報告順序。</span>'
+      : next ? `<button id="btn-open-next">▶ 開放第 ${next.report_order} 個報告：${esc(next.name)}</button>`
+      : '<span class="sub">已依序開放全部組別 ✓</span>';
+    if (next) $('btn-open-next').onclick = () => setOpened(next, new Date().toISOString());
+  }
+  $('pace-on').onchange = async (e) => {
+    try { A.act = await q(db.from('activities').update({ inter_paced: e.target.checked }).eq('id', A.act.id).select().single()); renderOrder(); }
+    catch (err) { e.target.checked = !e.target.checked; fail(err); }
+  };
+  async function setOpened(g, at) {
+    try { await q(db.from('groups').update({ inter_opened_at: at }).eq('id', g.id)); g.inter_opened_at = at; renderOrder(); }
+    catch (e) { fail(e); }
   }
   async function saveOrder(ids) {
     try {

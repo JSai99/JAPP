@@ -104,6 +104,9 @@ button:disabled { opacity: .45; cursor: default; }
 .item .lead { display: flex; align-items: center; gap: 10px; }
 .ord { font-size: 12px; font-weight: 700; color: var(--dim); white-space: nowrap; }
 .item.done .gchip { opacity: .55; }
+.item.wait { cursor: default; opacity: .7; }
+.item.wait .tag { background: var(--line); color: var(--dim); }
+.item.wait .gchip { opacity: .6; }
 .hidden { display: none !important; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
          background: var(--ok); color: #fff; padding: 10px 18px; border-radius: 99px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
@@ -272,6 +275,7 @@ button:disabled { opacity: .45; cursor: default; }
       const r = await rpc('student_claim', { p_code: S.code, p_member: memberId, p_token: deviceToken() });
       S.me = S.info.members.find((m) => m.id === memberId);
       S.done.inter = new Set(r.inter_done); S.done.intra = new Set(r.intra_done); S.done.pick = new Set(r.pick_done || []);
+      S.arrived = r.arrived_at ? Date.parse(r.arrived_at) : null; S.makeup = !!r.makeup;
       store.set('me:' + S.code, memberId);
       store.set('mine', S.code); // 選定名字後，這支手機就固定用這個代碼，不能換
       renderHome();
@@ -301,22 +305,30 @@ button:disabled { opacity: .45; cursor: default; }
     if (!intraOn) S.tab = 'inter';
     $('tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
     const hasRate = crits(S.tab).length > 0;
-    const list = hasRate ? targets(S.tab) : [], done = S.done[S.tab];
+    // 逐組開放：還沒報告的組先鎖住；進來前就開始報告的組（晚到）不用評
+    const paced = S.tab === 'inter' && a.inter_paced && !S.makeup;
+    const state = (t) => S.done[S.tab].has(t.id) ? 'done'
+      : !paced ? 'open'
+      : !t.opened_at ? 'notyet'
+      : S.arrived && S.arrived > Date.parse(t.opened_at) ? 'missed' : 'open';
+    const list = hasRate ? targets(S.tab).filter((t) => state(t) !== 'missed') : [], done = S.done[S.tab];
     const pq = pickQs(S.tab);
     const total = list.length + pq.length;
     const n = list.filter((t) => done.has(t.id)).length + pq.filter((c) => S.done.pick.has(c.id)).length;
     $('anon-note').classList.toggle('hidden', S.tab !== 'intra');
     $('progress').textContent = n === total && total
       ? `全部完成（${n}/${total}），謝謝你！`
-      : `已完成 ${n}/${total}${S.tab === 'inter' ? '　每組報告結束後再評' : ''}`;
+      : `已完成 ${n}/${total}${S.tab !== 'inter' ? '' : paced ? '　每組開始報告時，老師會開放評分' : '　每組報告結束後再評'}`;
+    const missed = hasRate && paced ? targets('inter').filter((t) => state(t) === 'missed').length : 0;
+    if (missed) $('progress').textContent += `（${missed} 組在你進來前就報告了，不用評）`;
     renderPicks(pq);
     $('list').innerHTML = list.map((t) => {
-      const d = done.has(t.id);
+      const st = state(t), d = st === 'done', wait = st === 'notyet';
       const draft = !d && store.get(`draft:${S.code}:${S.me.id}:${t.id}`);
-      return `<button class="item ${d ? 'done' : ''}" data-id="${t.id}" ${d ? 'disabled' : ''}>
-        ${S.tab === 'inter' ? `<span class="lead">${groupChip(t.name, t.position)}${t.report_order ? `<span class="ord">第 ${t.report_order} 個報告</span>` : ''}</span>` : `<span>${esc(t.name)}</span>`}<span class="tag">${d ? '已送出 ✓' : draft ? '草稿' : '去評分'}</span></button>`;
+      return `<button class="item ${d ? 'done' : ''} ${wait ? 'wait' : ''}" data-id="${t.id}" ${d || wait ? 'disabled' : ''}>
+        ${S.tab === 'inter' ? `<span class="lead">${groupChip(t.name, t.position)}${t.report_order ? `<span class="ord">第 ${t.report_order} 個報告</span>` : ''}</span>` : `<span>${esc(t.name)}</span>`}<span class="tag">${d ? '已送出 ✓' : wait ? '還沒報告' : draft ? '草稿' : '去評分'}</span></button>`;
     }).join('');
-    $('list').querySelectorAll('.item:not(.done)').forEach((b) => b.onclick = () => openForm(S.tab, b.dataset.id));
+    $('list').querySelectorAll('.item:not(.done):not(.wait)').forEach((b) => b.onclick = () => openForm(S.tab, b.dataset.id));
     show('home');
   }
   $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; renderHome(); });
@@ -328,7 +340,7 @@ button:disabled { opacity: .45; cursor: default; }
     } catch (e) { alertErr(e); }
   };
   function alertErr(e) { $('progress').textContent = errMsg(e); }
-  // 停在總覽頁時每 20 秒默默更新：老師調整報告順序或開放評分，學生不用自己按重新整理
+  // 停在總覽頁時每 10 秒默默更新：老師調整報告順序或開放評分，學生不用自己按重新整理
   setInterval(async () => {
     if (document.hidden || !S.me || $('step-home').classList.contains('hidden')) return;
     try {
@@ -337,7 +349,7 @@ button:disabled { opacity: .45; cursor: default; }
       S.info = info; applyTheme(info.activity.theme);
       if (!$('step-home').classList.contains('hidden')) renderHome();
     } catch {}
-  }, 20000);
+  }, 10000);
 
   function renderPicks(pq) {
     const opts = targets(S.tab);
