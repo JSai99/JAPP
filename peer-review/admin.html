@@ -102,6 +102,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 #qr svg, #qr img { width: 220px; height: 220px; background: #fff; padding: 10px; border-radius: 10px; }
 .url { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
 .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; min-width: 80px; }
+td.prog { min-width: 84px; }
+td.prog > span { display: block; white-space: nowrap; margin-bottom: 4px; }
+td.prog .bar { min-width: 0; }
+button.danger.small { padding: 6px 12px; font-size: 13px; }
 .bar i { display: block; height: 100%; background: var(--ok); }
 .comment { border-left: 3px solid var(--accent-soft); padding: 4px 10px; margin: 6px 0; font-size: 14px; white-space: pre-wrap; }
 .comment .by { color: var(--dim); font-size: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
@@ -261,7 +265,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <!-- ④ 進度 -->
     <div id="t-progress" class="hidden">
       <div class="card">
-        <div class="row"><h2 style="margin:0">報告順序</h2><span style="flex:1"></span><button class="ghost small" id="btn-ord-rand">🎲 隨機排</button><button class="ghost small" id="btn-ord-clear">清除</button></div>
+        <div class="row"><h2 style="margin:0">報告順序</h2><span style="flex:1"></span><button class="ghost small" id="btn-ord-clear">清除</button></div>
         <p class="sub">抽到哪一組，就依序點那一組。學生頁「評其他組」會照這個順序排，約 10 秒內自動更新。</p>
         <div class="ordlist" id="ord-done"></div>
         <div class="ordpool" id="ord-pool"></div>
@@ -275,6 +279,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         <div class="row"><h2 style="margin:0">填寫進度</h2><span class="sub" id="prog-time"></span><span style="flex:1"></span><button class="ghost small" id="btn-prog-refresh">重新整理</button></div>
         <p class="sub">每 15 秒自動更新。只顯示各組有幾人完成，不顯示個人與分數。</p>
         <div class="tablewrap" style="margin-top:10px"><table id="prog-table"></table></div>
+        <div class="row" style="margin-top:14px"><span style="flex:1"></span><button class="danger small" id="btn-prog-reset">清除全部評分，重新開始</button></div>
       </div>
     </div>
 
@@ -724,13 +729,27 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       renderOrder();
     } catch (e) { fail(e); }
   }
-  $('btn-ord-rand').onclick = () => {
-    if (A.groups.some((g) => g.report_order) && !confirm('重新隨機排列所有組別？')) return;
-    const ids = A.groups.map((g) => g.id);
-    for (let i = ids.length - 1; i > 0; i--) { const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1); [ids[i], ids[j]] = [ids[j], ids[i]]; }
-    saveOrder(ids);
-  };
   $('btn-ord-clear').onclick = () => { if (confirm('清除報告順序？')) saveOrder([]); };
+
+  // 清除全部評分（試跑後重來）：評分、投票、手機綁定、到場時間、逐組開放都歸零；名單、代碼、面向、報告順序保留
+  $('btn-prog-reset').onclick = async () => {
+    const n = A.inter.length + A.intraDone.length + A.pickDone.length;
+    if (!confirm(`清除「${A.act.title}」的全部評分？\n\n會一起清掉：${n} 筆評分與投票、所有手機綁定（同學要重新選名字）、逐組開放紀錄。\n會保留：名單、代碼、評分面向、報告順序。\n\n無法復原。`)) return;
+    if (n && prompt(`請輸入活動名稱「${A.act.title}」以確認清除`) !== A.act.title) { alert('名稱不符，已取消'); return; }
+    const gids = A.groups.map((g) => g.id), mids = A.members.map((m) => m.id), cids = A.crit.map((c) => c.id);
+    try {
+      if (gids.length) await q(db.from('inter_ratings').delete().in('target_group_id', gids));
+      if (mids.length) {
+        await q(db.from('intra_scores').delete().in('target_member_id', mids));
+        await q(db.from('intra_done').delete().in('rater_id', mids));
+        await q(db.from('pick_done').delete().in('rater_id', mids));
+        await q(db.from('members').update({ claim_token: null, arrived_at: null }).in('id', mids));
+      }
+      if (cids.length) await q(db.from('pick_votes').delete().in('criterion_id', cids));
+      if (gids.length) await q(db.from('groups').update({ inter_opened_at: null }).in('id', gids));
+      await reload(); renderOrder(); await refreshProgress(); $('prog-time').textContent = '已清除，可以重新開始';
+    } catch (e) { fail(e); }
+  };
 
   // ④ 進度（只看各組完成人數，不顯示個人）
   let pollTimer = null;
@@ -754,11 +773,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       const possible = A.members.filter((m) => m.group.id !== g.id).length;
       const pct = (a, b) => (b ? Math.round(a / b * 100) : 0);
       return `<tr><td>${groupChip(g.name, g.position, 'sm')}</td>
-        <td class="num">${interDone}/${n} 人${interAny > interDone ? `<span class="sub">（${interAny - interDone} 人進行中）</span>` : ''}</td><td><div class="bar"><i style="width:${pct(interDone, n)}%"></i></div></td>
-        ${intraOn ? `<td class="num">${intraDoneN}/${n} 人</td><td><div class="bar"><i style="width:${pct(intraDoneN, n)}%"></i></div></td>` : ''}
+        <td class="prog"><span>${interDone}/${n} 人</span><div class="bar"><i style="width:${pct(interDone, n)}%"></i></div>${interAny > interDone ? `<div class="sub" style="font-size:12px">${interAny - interDone} 人進行中</div>` : ''}</td>
+        ${intraOn ? `<td class="prog"><span>${intraDoneN}/${n} 人</span><div class="bar"><i style="width:${pct(intraDoneN, n)}%"></i></div></td>` : ''}
         <td class="num sub">${recv}/${possible}</td></tr>`;
     }).join('');
-    $('prog-table').innerHTML = `<tr><th>組別</th><th class="num">組間互評完成</th><th></th>${intraOn ? '<th class="num">組內互評完成</th><th></th>' : ''}<th class="num">這組收到幾份組間評分</th></tr>${rows}`;
+    $('prog-table').innerHTML = `<tr><th>組別</th><th>組間完成</th>${intraOn ? '<th>組內完成</th>' : ''}<th class="num">收到評分</th></tr>${rows}`;
   }
   function countBy(arr, k) { const o = {}; arr.forEach((r) => o[r[k]] = (o[r[k]] || 0) + 1); return o; }
 
