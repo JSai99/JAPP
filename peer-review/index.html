@@ -29,6 +29,8 @@
 :root[data-theme=mint]   { --accent: #1d8060; --accent-soft: #dcf3e9; }
 :root[data-theme=paper]  { --accent: #9a6b3a; --accent-soft: #f3e9d8; }
 /* 用 lvh（網址列收起時的高度）固定大小，滑動時網址列伸縮不會讓背景重畫閃白 */
+/* Android Chrome：關掉下拉重新整理（iOS Safari 不支援，改靠重新整理後自動回到原本的評分頁） */
+html, body { overscroll-behavior-y: none; }
 #bg { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; z-index: -1; pointer-events: none; }
 :root[data-tone] body { background: transparent; }
 :root[data-tone] .card, :root[data-tone] .item, :root[data-tone] .pickcard {
@@ -117,6 +119,7 @@ button:disabled { opacity: .45; cursor: default; }
 <canvas id="bg" aria-hidden="true"></canvas>
 <main>
   <!-- 1. 輸入組別代碼 -->
+  <section id="step-load" class="hidden"><p class="sub" style="text-align:center;margin-top:30vh">載入中…</p></section>
   <section id="step-code">
     <h1>同儕互評</h1>
     <p class="sub">請輸入老師發給你們組的代碼</p>
@@ -203,7 +206,8 @@ button:disabled { opacity: .45; cursor: default; }
 
   function show(step) {
     const same = !$('step-' + step).classList.contains('hidden');
-    for (const s of ['code', 'name', 'home', 'form']) $('step-' + s).classList.toggle('hidden', s !== step);
+    for (const s of ['load', 'code', 'name', 'home', 'form']) $('step-' + s).classList.toggle('hidden', s !== step);
+    if (step !== 'form' && step !== 'load') { try { sessionStorage.removeItem('peer-open'); } catch {} }
     if (!same) window.scrollTo(0, 0);
   }
   function toast(msg) {
@@ -249,7 +253,7 @@ button:disabled { opacity: .45; cursor: default; }
   function applyTheme(name) {
     const th = PEER_THEMES[name] ? name : 'plain';
     if (th === curTheme) return;
-    curTheme = th; stopTheme?.(); stopTheme = null;
+    curTheme = th; stopTheme?.(); stopTheme = null; store.set('theme', th);
     const root = document.documentElement, t = PEER_THEMES[th];
     if (th === 'plain') { delete root.dataset.theme; delete root.dataset.tone; root.style.backgroundColor = ''; return; }
     root.style.backgroundColor = t.bg[1]; // 背景萬一來不及畫，露出的是主題底色而不是白色
@@ -280,7 +284,10 @@ button:disabled { opacity: .45; cursor: default; }
       S.arrived = r.arrived_at ? Date.parse(r.arrived_at) : null; S.makeup = !!r.makeup;
       store.set('me:' + S.code, memberId);
       store.set('mine', S.code); // 選定名字後，這支手機就固定用這個代碼，不能換
+      // 手機下拉不小心重新整理時，回到原本正在填的評分頁（草稿本來就有存）
+      let open = null; try { open = JSON.parse(sessionStorage.getItem('peer-open')); } catch {}
       renderHome();
+      if (open && !S.done[open.kind]?.has(open.id) && targets(open.kind).some((t) => t.id === open.id)) openForm(open.kind, open.id);
     } catch (e) {
       if (silent) { store.del('me:' + S.code); renderNames(); }
       $('err-name').textContent = errMsg(e);
@@ -379,6 +386,7 @@ button:disabled { opacity: .45; cursor: default; }
     if (!S.info.activity.is_open) { toast('老師還沒開放評分'); return; }
     const t = targets(kind).find((x) => x.id === id);
     S.target = { kind, id };
+    try { sessionStorage.setItem('peer-open', JSON.stringify(S.target)); } catch {}
     const key = `draft:${S.code}:${S.me.id}:${id}`;
     S.answers = store.get(key) || {};
     const max = S.info.activity.scale_max;
@@ -449,7 +457,8 @@ button:disabled { opacity: .45; cursor: default; }
   // ── 啟動：網址帶 ?code= 或上次輸入過的代碼 ──
   const urlCode = new URLSearchParams(location.search).get('code');
   const start = store.get('mine') || urlCode || store.get('code');
-  if (start) { $('code').value = start; enterCode(start); }
+  // 重新進來（含手機下拉重新整理）時先套上次的背景、顯示載入中，不閃出輸入代碼頁
+  if (start) { applyTheme(store.get('theme')); show('load'); $('code').value = start; enterCode(start); }
   else show('code');
 })();
 </script>

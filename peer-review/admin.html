@@ -402,7 +402,7 @@ button.danger.small { padding: 6px 12px; font-size: 13px; }
         { kind: 'inter', position: 5, label: '給這組的回饋', qtype: 'text', is_text: true },
         ...['參與程度', '貢獻度', '合作態度'].map((label, i) => ({ kind: 'intra', position: i, label, qtype: 'score' })),
         { kind: 'intra', position: 3, label: '組內最力推哪位組員？', description: '選一位這次最值得肯定的組員（不能選自己）', qtype: 'pick' },
-        { kind: 'intra', position: 4, label: '想對這位組員說', qtype: 'text', is_text: true },
+        { kind: 'intra', position: 4, label: '給夥伴的一句話', qtype: 'text', is_text: true },
       ].map((c) => ({ description: '', is_text: false, required: false, ...c, activity_id: a.id })); // 每筆欄位要一致，否則批次新增會失敗
       await q(db.from('criteria').insert(defs));
       $('new-title').value = '';
