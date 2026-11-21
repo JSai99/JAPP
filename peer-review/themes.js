@@ -8,7 +8,15 @@
     ember:  { label: '螢火', dark: true,  bg: ['#1f1214', '#160c0e'] },
     bubble: { label: '泡泡', dark: false, bg: ['#ffffff', '#fbfcff'] },
     pastel: { label: '粉彩', dark: false, bg: ['#fbf7f2', '#f8f2ea'] },
+    sky:    { label: '藍天白雲（靜態）', dark: false, bg: ['#7cbcef', '#e4f3ff'] },
+    dawn:   { label: '晨曦（靜態）', dark: false, bg: ['#ffe4d2', '#ece2fb'] },
+    mint:   { label: '薄荷（靜態）', dark: false, bg: ['#def4ea', '#f6fcf9'] },
+    paper:  { label: '紙張（靜態）', dark: false, bg: ['#fbf8f1', '#f7f2e7'] },
   };
+  // 手機螢幕小，裝飾要跟著縮：以短邊 700px 為基準，最小縮到 0.45 倍
+  const scaleOf = (w, h) => Math.min(1, Math.max(.45, Math.min(w, h) / 700));
+  // 裝飾盡量放在左右兩側，中間留給題目卡片
+  const sideX = (w) => (Math.random() < .5 ? rnd(-.08, .26) : rnd(.74, 1.08)) * w;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -18,8 +26,8 @@
       let flames = [], sparks = [];
       return {
         init(w, h) {
-          const n = Math.max(3, Math.round(w * h / 160000));
-          flames = Array.from({ length: n }, () => ({ x: rnd(.05, .95) * w, y: rnd(.1, .9) * h, r: rnd(90, 150), ph: rnd(0, 9), sp: rnd(.6, 1.2) }));
+          const n = Math.max(3, Math.round(w * h / 160000)), k = scaleOf(w, h);
+          flames = Array.from({ length: n }, () => ({ x: sideX(w), y: rnd(.1, .9) * h, r: rnd(90, 150) * k, ph: rnd(0, 9), sp: rnd(.6, 1.2) }));
           sparks = Array.from({ length: n * 3 }, () => ({ x: rnd(0, w), y: rnd(0, h), v: rnd(6, 16), r: rnd(1.2, 2.6), dx: rnd(-4, 4) }));
         },
         frame(ctx, w, h, t, dt) {
@@ -55,7 +63,8 @@
       };
       return {
         init(w, h) {
-          stars = Array.from({ length: Math.round(w * h / 22000) + 8 }, () => ({ x: rnd(0, w), y: rnd(0, h), r: rnd(3, 9), c: pick(COLORS), ph: rnd(0, 9), sp: rnd(.6, 1.6) }));
+          const k = Math.max(.7, scaleOf(w, h));
+          stars = Array.from({ length: Math.round(w * h / 22000) + 8 }, () => ({ x: rnd(0, w), y: rnd(0, h), r: rnd(3, 8) * k, c: pick(COLORS), ph: rnd(0, 9), sp: rnd(.6, 1.6) }));
         },
         frame(ctx, w, h, t, dt) {
           for (const s of stars) sparkle(ctx, s.x, s.y, s.r * (.85 + .15 * Math.sin(t * s.sp + s.ph)), s.c, .55 + .4 * Math.sin(t * s.sp * 1.3 + s.ph));
@@ -95,19 +104,57 @@
         },
       };
     },
-    bubble: () => circles(['255,236,200', '210,250,230', '215,230,255', '255,215,225'], .22, false),
-    pastel: () => circles(['250,200,205', '200,240,220', '200,230,235', '245,200,225'], .38, true),
+    bubble: () => circles(['255,226,180', '190,240,215', '200,218,255', '255,205,218'], .26, false),
+    pastel: () => circles(['250,200,205', '200,240,220', '200,230,235', '245,200,225'], .26, true),
+    sky: () => still((ctx, w, h) => {
+      const k = scaleOf(w, h);
+      // 一朵雲 = 幾顆重疊的圓，底部壓平
+      const cloud = (cx, cy, s, a) => {
+        ctx.save(); ctx.translate(cx, cy); ctx.scale(s, s);
+        const g = ctx.createLinearGradient(0, -60, 0, 30);
+        g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(1, `rgba(240,248,255,${a * .8})`);
+        ctx.fillStyle = g; ctx.beginPath();
+        for (const [x, y, r] of [[-70, 0, 34], [-30, -24, 44], [22, -32, 52], [70, -8, 38], [100, 6, 26]]) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 7); }
+        ctx.fill(); ctx.fillRect(-100, 0, 226, 32); ctx.restore();
+      };
+      cloud(w * .12, h * .1, .9 * k, .95); cloud(w * .86, h * .2, .7 * k, .85);
+      cloud(w * .9, h * .62, .55 * k, .55); cloud(w * .06, h * .8, .75 * k, .6); cloud(w * .7, h * .95, 1 * k, .75);
+    }),
+    dawn: () => still((ctx, w, h) => {
+      const k = scaleOf(w, h), r = 260 * k;
+      const g = ctx.createRadialGradient(w * .92, h * .06, 0, w * .92, h * .06, r * 1.6);
+      g.addColorStop(0, 'rgba(255,214,150,.9)'); g.addColorStop(.35, 'rgba(255,186,150,.45)'); g.addColorStop(1, 'rgba(255,186,150,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      const v = ctx.createRadialGradient(w * .05, h * .95, 0, w * .05, h * .95, r * 1.4);
+      v.addColorStop(0, 'rgba(196,170,240,.55)'); v.addColorStop(1, 'rgba(196,170,240,0)');
+      ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
+    }),
+    mint: () => still((ctx, w, h) => {
+      const k = scaleOf(w, h);
+      for (const [x, y, r, c] of [[.0, .04, 230, '150,220,190'], [1, .5, 180, '160,215,225'], [.1, 1, 210, '185,230,170']]) {
+        const g = ctx.createRadialGradient(x * w, y * h, 0, x * w, y * h, r * k * 1.5);
+        g.addColorStop(0, `rgba(${c},.55)`); g.addColorStop(1, `rgba(${c},0)`);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      }
+    }),
+    paper: () => still((ctx, w, h) => {
+      ctx.fillStyle = 'rgba(140,115,80,.2)';
+      for (let y = 12; y < h; y += 22) for (let x = 12; x < w; x += 22) { ctx.beginPath(); ctx.arc(x, y, 1.1, 0, 7); ctx.fill(); }
+    }),
   };
+  // 靜態主題：只畫一次，不跑動畫
+  function still(paint) { return { still: true, init() {}, frame: (ctx, w, h) => paint(ctx, w, h) }; }
   function circles(colors, alpha, outline) {
     let cs = [];
     return {
       init(w, h) {
-        cs = Array.from({ length: Math.round(w * h / 60000) + 5 }, () => ({ x: rnd(0, w), y: rnd(0, h), r: rnd(35, 105), c: pick(colors), vy: -rnd(4, 10), ph: rnd(0, 9) }));
+        const k = scaleOf(w, h);
+        cs = Array.from({ length: Math.round(w * h / 50000) + 4 }, () => ({ x: sideX(w), y: rnd(0, h), r: rnd(30, 80) * k, c: pick(colors), vy: -rnd(4, 10), ph: rnd(0, 9) }));
       },
       frame(ctx, w, h, t, dt) {
         for (const c of cs) {
           c.y += c.vy * dt; const x = c.x + Math.sin(t * .3 + c.ph) * 12;
-          if (c.y < -c.r - 5) { c.y = h + c.r; c.x = rnd(0, w); }
+          if (c.y < -c.r - 5) { c.y = h + c.r; c.x = sideX(w); }
           ctx.fillStyle = `rgba(${c.c},${alpha})`; ctx.beginPath(); ctx.arc(x, c.y, c.r, 0, 7); ctx.fill();
           if (outline) { ctx.strokeStyle = `rgba(${c.c},.9)`; ctx.lineWidth = 2; ctx.stroke(); }
         }
@@ -120,7 +167,7 @@
     const th = THEMES[name] || THEMES.plain;
     const ctx = canvas.getContext('2d');
     let raf = 0, last = 0, w = 0, h = 0, t = 0, scene = SCENES[name] ? SCENES[name]() : null;
-    const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const still = scene?.still || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
     const size = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       w = canvas.clientWidth; h = canvas.clientHeight;
