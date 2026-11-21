@@ -7,8 +7,7 @@
     starry: { label: '星空', dark: true,  bg: ['#23246a', '#0b1030'] },
     ember:  { label: '螢火', dark: true,  bg: ['#1f1214', '#160c0e'] },
     bubble: { label: '泡泡', dark: false, bg: ['#ffffff', '#fbfcff'] },
-    pastel: { label: '粉彩', dark: false, bg: ['#fbf7f2', '#f8f2ea'] },
-    sky:    { label: '藍天白雲（靜態）', dark: false, bg: ['#7cbcef', '#e4f3ff'] },
+    pastel: { label: '粉彩', dark: false, bg: ['#fdf3f5', '#f4effb'] },
     dawn:   { label: '晨曦（靜態）', dark: false, bg: ['#ffe4d2', '#ece2fb'] },
     mint:   { label: '薄荷（靜態）', dark: false, bg: ['#def4ea', '#f6fcf9'] },
     paper:  { label: '紙張（靜態）', dark: false, bg: ['#fbf8f1', '#f7f2e7'] },
@@ -16,7 +15,12 @@
   // 手機螢幕小，裝飾要跟著縮：以短邊 700px 為基準，最小縮到 0.45 倍
   const scaleOf = (w, h) => Math.min(1, Math.max(.45, Math.min(w, h) / 700));
   // 裝飾盡量放在左右兩側，中間留給題目卡片
-  const sideX = (w) => (Math.random() < .5 ? rnd(-.08, .26) : rnd(.74, 1.08)) * w;
+  // 平板、筆電上題目欄寬 620px 置中，兩側空白夠寬時就把裝飾放在空白處
+  const sideX = (w) => {
+    const free = (w - 660) / 2, left = Math.random() < .5;
+    if (free > 140) return left ? rnd(-.1, 1) * free : w - rnd(-.1, 1) * free;
+    return (left ? rnd(-.08, .26) : rnd(.74, 1.08)) * w;
+  };
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -105,21 +109,7 @@
       };
     },
     bubble: () => circles(['255,226,180', '190,240,215', '200,218,255', '255,205,218'], .26, false),
-    pastel: () => circles(['250,200,205', '200,240,220', '200,230,235', '245,200,225'], .26, true),
-    sky: () => still((ctx, w, h) => {
-      const k = scaleOf(w, h);
-      // 一朵雲 = 幾顆重疊的圓，底部壓平
-      const cloud = (cx, cy, s, a) => {
-        ctx.save(); ctx.translate(cx, cy); ctx.scale(s, s);
-        const g = ctx.createLinearGradient(0, -60, 0, 30);
-        g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(1, `rgba(240,248,255,${a * .8})`);
-        ctx.fillStyle = g; ctx.beginPath();
-        for (const [x, y, r] of [[-70, 0, 34], [-30, -24, 44], [22, -32, 52], [70, -8, 38], [100, 6, 26]]) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 7); }
-        ctx.fill(); ctx.fillRect(-100, 0, 226, 32); ctx.restore();
-      };
-      cloud(w * .12, h * .1, .9 * k, .95); cloud(w * .86, h * .2, .7 * k, .85);
-      cloud(w * .9, h * .62, .55 * k, .55); cloud(w * .06, h * .8, .75 * k, .6); cloud(w * .7, h * .95, 1 * k, .75);
-    }),
+    pastel: () => circles(['244,180,198', '214,192,238', '250,204,186', '236,190,224'], .22, true),
     dawn: () => still((ctx, w, h) => {
       const k = scaleOf(w, h), r = 260 * k;
       const g = ctx.createRadialGradient(w * .92, h * .06, 0, w * .92, h * .06, r * 1.6);
@@ -149,14 +139,14 @@
     return {
       init(w, h) {
         const k = scaleOf(w, h);
-        cs = Array.from({ length: Math.round(w * h / 50000) + 4 }, () => ({ x: sideX(w), y: rnd(0, h), r: rnd(30, 80) * k, c: pick(colors), vy: -rnd(4, 10), ph: rnd(0, 9) }));
+        cs = Array.from({ length: Math.min(22, Math.round(w * h / 50000) + 4) }, () => ({ x: sideX(w), y: rnd(0, h), r: rnd(30, 80) * k, c: pick(colors), vy: -rnd(4, 10), ph: rnd(0, 9) }));
       },
       frame(ctx, w, h, t, dt) {
         for (const c of cs) {
           c.y += c.vy * dt; const x = c.x + Math.sin(t * .3 + c.ph) * 12;
           if (c.y < -c.r - 5) { c.y = h + c.r; c.x = sideX(w); }
           ctx.fillStyle = `rgba(${c.c},${alpha})`; ctx.beginPath(); ctx.arc(x, c.y, c.r, 0, 7); ctx.fill();
-          if (outline) { ctx.strokeStyle = `rgba(${c.c},.9)`; ctx.lineWidth = 2; ctx.stroke(); }
+          if (outline) { ctx.strokeStyle = `rgba(${c.c},.6)`; ctx.lineWidth = 1.5; ctx.stroke(); }
         }
       },
     };

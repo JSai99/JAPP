@@ -23,9 +23,8 @@
 :root[data-theme=candle] { --accent: #d98a3a; --accent-soft: #3a2a1c; --card: #2a211b; --line: #45372b; --seg: #3a2f27; }
 :root[data-theme=starry] { --accent: #8f7dff; --accent-soft: #2c2a5e; --card: #1f2150; --line: #36397a; --seg: #2c2f6a; }
 :root[data-theme=ember]  { --accent: #e8743f; --accent-soft: #3a1e1a; --card: #2a1a1c; --line: #45292b; --seg: #3a2527; }
-:root[data-theme=pastel] { --accent: #d0628c; --accent-soft: #fbe6ee; }
+:root[data-theme=pastel] { --accent: #c2547f; --accent-soft: #f9e4ee; }
 :root[data-theme=bubble] { --accent: #4a7be6; }
-:root[data-theme=sky]    { --accent: #2a78c8; --accent-soft: #e2f0fc; }
 :root[data-theme=dawn]   { --accent: #b8532f; --accent-soft: #fde8de; }
 :root[data-theme=mint]   { --accent: #1d8060; --accent-soft: #dcf3e9; }
 :root[data-theme=paper]  { --accent: #9a6b3a; --accent-soft: #f3e9d8; }
@@ -39,6 +38,7 @@ body {
   padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
 }
 main { max-width: 560px; margin: 0 auto; }
+@media (min-width: 768px) { body { padding-top: 40px; font-size: 17px; } main { max-width: 620px; } }
 h1 { font-size: 20px; margin: 4px 0 2px; }
 h2 { font-size: 17px; margin-bottom: 10px; }
 .sub { color: var(--dim); font-size: 14px; }
