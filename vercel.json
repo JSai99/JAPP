@@ -4,7 +4,6 @@
     { "source": "/", "destination": "/peer-review/index.html" },
     { "source": "/config.js", "destination": "/peer-review/config.js" },
     { "source": "/colors.js", "destination": "/peer-review/colors.js" },
-    { "source": "/themes.js", "destination": "/peer-review/themes.js" },
-    { "source": "/admin", "destination": "/peer-review/admin.html" }
+    { "source": "/themes.js", "destination": "/peer-review/themes.js" }
   ]
 }
