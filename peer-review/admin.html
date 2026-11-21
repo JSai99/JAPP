@@ -56,6 +56,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .acts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
 .act { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; text-align: left; color: var(--text); font-weight: 400; }
 .act:hover { border-color: var(--accent); }
+.actw { position: relative; display: grid; }
+.actw .act { padding-right: 44px; }
+.actw .actdel { position: absolute; top: 8px; right: 8px; padding: 4px 8px; }
 .act b { display: block; font-size: 16px; margin-bottom: 4px; }
 .critrow { display: grid; grid-template-columns: 26px 1fr 1.4fr 110px auto; gap: 8px; align-items: center; margin-top: 8px; }
 .critrow input { width: 100%; }
@@ -302,11 +305,31 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     stopPoll();
     view('list');
     const acts = await q(db.from('activities').select('id,title,is_open,created_at,groups(count)').order('created_at', { ascending: false }));
-    $('acts').innerHTML = acts.length ? acts.map((a) => `<button class="act" data-id="${a.id}"><b>${esc(a.title)}</b>
+    $('acts').innerHTML = acts.length ? acts.map((a) => `<div class="actw"><button class="act" data-id="${a.id}"><b>${esc(a.title)}</b>
       <span class="pill ${a.is_open ? 'ok' : ''}">${a.is_open ? '評分中' : '未開放'}</span>
-      <span class="sub">　${a.groups[0]?.count || 0} 組・${new Date(a.created_at).toLocaleDateString('zh-TW')}</span></button>`).join('')
+      <span class="sub">　${a.groups[0]?.count || 0} 組・${new Date(a.created_at).toLocaleDateString('zh-TW')}</span></button>
+      <button class="danger small actdel" data-del-act="${a.id}" title="刪除這個活動">🗑</button></div>`).join('')
       : '<p class="sub" style="margin-top:8px">還沒有活動，先建立一個吧。</p>';
     $('acts').querySelectorAll('.act').forEach((b) => b.onclick = () => openAct(b.dataset.id));
+    $('acts').querySelectorAll('[data-del-act]').forEach((b) => b.onclick = () => {
+      const a = acts.find((x) => x.id === b.dataset.delAct); deleteActivity(a.id, a.title);
+    });
+  }
+  // 刪除活動（列表與活動頁共用）：有學生評分時要再輸入一次名稱
+  async function deleteActivity(id, title) {
+    try {
+      const groups = await q(db.from('groups').select('id, members(*)').eq('activity_id', id));
+      const gids = groups.map((g) => g.id), mids = groups.flatMap((g) => g.members.map((m) => m.id));
+      let n = 0;
+      if (gids.length) n += (await q(db.from('inter_ratings').select('id').in('target_group_id', gids))).length;
+      if (mids.length) n += (await q(db.from('intra_done').select('rater_id').in('rater_id', mids))).length
+                         + (await q(db.from('pick_done').select('rater_id').in('rater_id', mids))).length;
+      const warn = n ? `⚠ 這個活動已經有 ${n} 筆學生評分，刪除後全部消失。\n\n` : '';
+      if (!confirm(`${warn}確定刪除「${title}」？名單、代碼與評分會一起刪除，無法復原。`)) return;
+      if (n && prompt(`請輸入活動名稱「${title}」以確認刪除`) !== title) { alert('名稱不符，已取消'); return; }
+      await q(db.from('activities').delete().eq('id', id));
+      A.tab = 'setup'; loadList();
+    } catch (e) { fail(e); }
   }
   $('btn-new').onclick = async () => {
     const title = $('new-title').value.trim();
@@ -320,7 +343,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         ...['參與程度', '貢獻度', '合作態度'].map((label, i) => ({ kind: 'intra', position: i, label, qtype: 'score' })),
         { kind: 'intra', position: 3, label: '組內最力推哪位組員？', description: '選一位這次最值得肯定的組員（不能選自己）', qtype: 'pick' },
         { kind: 'intra', position: 4, label: '想對這位組員說', qtype: 'text', is_text: true },
-      ].map((c) => ({ ...c, activity_id: a.id }));
+      ].map((c) => ({ description: '', is_text: false, ...c, activity_id: a.id })); // 每筆欄位要一致，否則批次新增會失敗
       await q(db.from('criteria').insert(defs));
       $('new-title').value = '';
       openAct(a.id);
@@ -381,15 +404,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     catch (e) { fail(e); }
   };
   $('btn-back').onclick = loadList;
-  $('btn-del-act').onclick = async () => {
-    const t = A.act.title;
-    const n = A.inter.length + A.intraDone.length + A.pickDone.length;
-    const warn = n ? `⚠ 這個活動已經有 ${n} 筆學生評分，刪除後全部消失。\n\n` : '';
-    if (!confirm(`${warn}確定刪除「${t}」？刪除後無法復原。`)) return;
-    if (n && prompt(`請輸入活動名稱「${t}」以確認刪除`) !== t) { alert('名稱不符，已取消'); return; }
-    try { await q(db.from('activities').delete().eq('id', A.act.id)); A.tab = 'setup'; loadList(); }
-    catch (e) { fail(e); }
-  };
+  $('btn-del-act').onclick = () => deleteActivity(A.act.id, A.act.title);
   $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
   function setTab(t) {
     A.tab = t;
