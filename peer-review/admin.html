@@ -56,6 +56,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .acts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
 .act { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; text-align: left; color: var(--text); font-weight: 400; }
 .act:hover { border-color: var(--accent); }
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
+.theme { padding: 0; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; color: var(--text); font-weight: 600; text-align: center; }
+.theme canvas { display: block; width: 100%; height: 84px; background: #f4f5f7; }
+.theme span { display: block; padding: 6px 0; font-size: 14px; background: var(--card); }
+.theme.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .actw { position: relative; display: grid; }
 .actw .act { padding-right: 44px; }
 .actw .actdel { position: absolute; top: 8px; right: 8px; padding: 4px 8px; }
@@ -161,6 +166,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         </div>
         <div class="row"><button id="btn-save-basic">儲存</button><span class="okmsg" id="ok-basic"></span></div>
       </div>
+      <div class="card">
+        <h2>學生頁背景</h2>
+        <p class="sub">學生輸入代碼後看到的背景。點一下就套用。</p>
+        <div class="themes" id="themes"></div>
+      </div>
       <div class="card" id="crit-card">
         <h2>評分面向</h2>
         <p class="sub">「分數」題用上方量尺；「填空」題為選填文字；「票選」題讓學生從其他組（組間）或組員（組內）中選一個。已有學生送出評分後，請不要刪除面向，否則該面向的分數會遺失。</p>
@@ -259,6 +269,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 <script src="../shared/vendor/qrcode.js"></script>
 <script src="config.js"></script>
 <script src="colors.js"></script>
+<script src="themes.js"></script>
 <script src="../shared/vendor/fflate.min.js"></script>
 <script>
 (() => {
@@ -418,8 +429,22 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   let critDraft = { inter: [], intra: [] };
   function renderSetup() {
     $('s-title').value = A.act.title; $('s-scale').value = A.act.scale_max; $('s-bonus').value = A.act.bonus_max; $('s-intra').checked = A.act.intra_enabled; $('s-basis').value = A.act.bonus_basis || 'pick';
+    drawThemes();
     critDraft = { inter: A.crit.filter((c) => c.kind === 'inter').map((c) => ({ ...c })), intra: A.crit.filter((c) => c.kind === 'intra').map((c) => ({ ...c })) };
     drawCrit();
+  }
+  let themeStops = [];
+  function drawThemes() {
+    themeStops.forEach((f) => f()); themeStops = [];
+    const cur = A.act.theme || 'plain';
+    $('themes').innerHTML = Object.entries(PEER_THEMES).map(([k, t]) => `<button class="theme ${k === cur ? 'on' : ''}" data-theme="${k}"><canvas></canvas><span>${k === cur ? '✓ ' : ''}${esc(t.label)}</span></button>`).join('');
+    $('themes').querySelectorAll('.theme').forEach((b) => {
+      themeStops.push(playTheme(b.dataset.theme, b.querySelector('canvas')));
+      b.onclick = async () => {
+        try { A.act = await q(db.from('activities').update({ theme: b.dataset.theme }).eq('id', A.act.id).select().single()); drawThemes(); }
+        catch (e) { fail(e); }
+      };
+    });
   }
   function drawCrit() {
     for (const kind of ['inter', 'intra']) {
@@ -577,7 +602,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   }
 
   // ③ 發給學生
-  const studentUrl = () => new URL('index.html', location.href).href;
+  const studentUrl = () => PEER_CONFIG.studentUrl || new URL('index.html', location.href).href;
   function renderShare() {
     const url = studentUrl();
     $('stu-url').textContent = url;
