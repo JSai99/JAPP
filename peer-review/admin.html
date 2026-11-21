@@ -181,9 +181,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <div id="t-roster" class="hidden">
       <div class="card">
         <h2>匯入名單</h2>
-        <p class="sub">直接上傳 <b>TronClass 匯出的分組 Excel</b>，或從 Excel 複製貼上（每行：組別、姓名、學號）。組名若是成員名字串，會自動改成「第 N 組」。匯入會<b>取代</b>目前的名單與代碼。</p>
-        <div class="row" style="margin:6px 0 10px"><label class="ghost" style="display:inline-block;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--accent);font-weight:600">📄 上傳 Excel 名單<input type="file" id="roster-file" accept=".xlsx,.csv,.txt" hidden></label><span class="sub">或貼在下面</span></div>
-        <textarea id="roster-text" placeholder="1&#9;王小明&#9;B11001001&#10;1&#9;李小華&#10;2&#9;陳大同"></textarea>
+        <p class="sub">直接上傳 <b>TronClass 匯出的分組 Excel</b>，或在下面直接打字：先寫一行「第1組」，下面每行一位組員（姓名後面可空一格加學號），接著再寫「第2組」⋯⋯。從 Excel 複製「組別、姓名、學號」三欄貼上也可以。匯入會<b>取代</b>目前的名單與代碼。</p>
+        <div class="row" style="margin:6px 0 10px"><label class="ghost" style="display:inline-block;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--accent);font-weight:600">📄 上傳 Excel 名單<input type="file" id="roster-file" accept=".xlsx,.csv,.txt" hidden></label><span class="sub">或在下面輸入</span></div>
+        <textarea id="roster-text" placeholder="第1組&#10;王小明 B11001001&#10;李小華&#10;第2組&#10;陳大同"></textarea>
         <div class="row" style="margin-top:10px"><button id="btn-import">預覽</button><span class="sub" id="import-preview"></span></div>
         <div class="row hidden" id="import-confirm"><button id="btn-import-go">確定匯入</button></div>
         <p class="err" id="err-roster"></p>
@@ -460,33 +460,37 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   // ② 名單
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   function newCode() { const a = new Uint8Array(6); crypto.getRandomValues(a); return Array.from(a, (b) => CODE_CHARS[b % CODE_CHARS.length]).join(''); }
-  function groupName(raw) { const s = raw.trim(); return /^\d+$/.test(s) ? `第 ${+s} 組` : s; }
+  function groupName(raw) { const s = raw.trim(); const n = s.match(/^(?:第|組|group)?\s*(\d+)\s*組?$/i); return n ? `第 ${+n[1]} 組` : s; }
   let parsed = null;
-  // 支援兩種格式：
-  // (1) 簡單表：組別、姓名、學號（可省略）
-  // (2) TronClass 專題分組匯出：組名列（帳號欄放組名、成員數欄放人數）後面接「學號、姓名」
+  // 支援三種寫法：
+  // (1) 一行一人：組別、姓名、學號（可省略），用 Tab、逗號或空白隔開
+  // (2) 手打分段：先寫一行「第1組」，下面每行一位組員（可加學號）
+  // (3) TronClass 專題分組匯出：組名列（帳號欄放組名、成員數欄放人數）後面接「學號、姓名」
+  const isNo = (t) => /^[A-Za-z]{0,2}\d{6,}[A-Za-z]?$/.test(t);
+  const isGroup = (t) => /^\d{1,2}$/.test(t) || /^第\s*[\d一二三四五六七八九十]+\s*組$/.test(t) || /^(組|group)\s*\d+$/i.test(t) || /^\d{1,2}\s*組$/.test(t);
   function parseRoster(rows) {
     const groups = []; const bad = []; let cur = null;
+    const getGroup = (name) => { let g = groups.find((x) => x.name === name); if (!g) { g = { name, members: [] }; groups.push(g); } return g; };
+    const addMember = (toks) => {
+      const no = toks.find(isNo) || ''; const name = toks.find((t) => t !== no) || '';
+      if (name) cur.members.push({ name, student_no: no });
+      else if (no && cur.members.length && !cur.members.at(-1).student_no) cur.members.at(-1).student_no = no;
+    };
     rows.forEach((raw, i) => {
       const c = raw.map((x) => String(x ?? '').trim());
-      if (!c.some(Boolean)) return;
-      if (c.includes('姓名')) return; // 標題列
+      const t = c.filter(Boolean);
+      if (!t.length) return;
+      if (t.some((x) => /^(姓名|學號)$/.test(x))) return; // 標題列
       if (c[0] && !c[1] && /^\d+$/.test(c[2] || '')) { // TronClass 組名列
-        cur = { name: c[0].includes('、') ? `第 ${groups.length + 1} 組` : c[0], members: [] };
-        groups.push(cur); return;
+        cur = getGroup(c[0].includes('、') ? `第 ${groups.length + 1} 組` : c[0]); return;
       }
-      if (cur && c[1]) { cur.members.push({ name: c[1], student_no: c[0] }); return; }
-      if (c[0] && c[1] && !/^\d{6,}$/.test(c[0])) {
-        const gname = groupName(c[0]);
-        let g = groups.find((x) => x.name === gname);
-        if (!g) { g = { name: gname, members: [] }; groups.push(g); }
-        g.members.push({ name: c[1], student_no: c[2] || '' }); return;
-      }
+      if (isGroup(t[0])) { cur = getGroup(groupName(t[0].replace(/\s+/g, ''))); if (t.length > 1) addMember(t.slice(1)); return; }
+      if (cur) { addMember(t); return; }
       bad.push(i + 1);
     });
     return { groups: groups.filter((g) => g.members.length), bad };
   }
-  const textRows = (text) => text.split(/\r?\n/).map((l) => (l.includes('\t') ? l.split('\t') : l.split(/[,，]/)));
+  const textRows = (text) => text.split(/\r?\n/).map((l) => (l.includes('\t') ? l.split('\t') : l.split(/[,，\s\u3000]+/)));
   // 讀 .xlsx：解壓後讀第一張工作表（不需要大型試算表函式庫）
   async function readXlsx(file) {
     const files = fflate.unzipSync(new Uint8Array(await file.arrayBuffer()));
@@ -508,7 +512,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     const n = parsed.groups.reduce((s, g) => s + g.members.length, 0);
     $('import-preview').innerHTML = parsed.groups.length
       ? `${parsed.groups.length} 組、${n} 人：` + parsed.groups.map((g, i) => `${groupChip(g.name, i, 'sm')}<span class="sub">×${g.members.length}</span>`).join(' ') : '';
-    $('err-roster').textContent = parsed.bad.length ? `第 ${parsed.bad.join('、')} 行看不懂，已略過` : (parsed.groups.length ? '' : '沒有讀到名單');
+    $('err-roster').textContent = parsed.bad.length ? `第 ${parsed.bad.join('、')} 行不知道是哪一組，已略過。請在名字上方先寫一行組別，例如「第1組」。` : (parsed.groups.length ? '' : '沒有讀到名單。請先寫一行組別（例如「第1組」），下面再寫組員姓名。');
     $('import-confirm').classList.toggle('hidden', !parsed.groups.length);
   }
   $('roster-file').onchange = async (e) => {
