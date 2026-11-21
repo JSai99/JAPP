@@ -175,7 +175,11 @@
       draw(dt); raf = requestAnimationFrame(loop);
     };
     size();
-    const ro = new ResizeObserver(() => { size(); if (still || !scene) draw(0); });
+    // 手機滑動時網址列伸縮會改變高度；寬度沒變、高度只差一點點就不重畫，避免閃爍
+    const ro = new ResizeObserver(() => {
+      if (canvas.clientWidth === w && Math.abs(canvas.clientHeight - h) < 160) return;
+      size(); if (still || !scene) draw(0);
+    });
     ro.observe(canvas);
     if (still || !scene) { t = 3; draw(0); } else raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); ctx.clearRect(0, 0, w, h); };
