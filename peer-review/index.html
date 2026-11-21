@@ -119,6 +119,7 @@ button:disabled { opacity: .45; cursor: default; }
 <canvas id="bg" aria-hidden="true"></canvas>
 <main>
   <!-- 1. 輸入組別代碼 -->
+  <section id="step-load" class="hidden"><p class="sub" style="text-align:center;margin-top:30vh">載入中…</p></section>
   <section id="step-code">
     <h1>同儕互評</h1>
     <p class="sub">請輸入老師發給你們組的代碼</p>
@@ -205,8 +206,8 @@ button:disabled { opacity: .45; cursor: default; }
 
   function show(step) {
     const same = !$('step-' + step).classList.contains('hidden');
-    for (const s of ['code', 'name', 'home', 'form']) $('step-' + s).classList.toggle('hidden', s !== step);
-    if (step !== 'form') { try { sessionStorage.removeItem('peer-open'); } catch {} }
+    for (const s of ['load', 'code', 'name', 'home', 'form']) $('step-' + s).classList.toggle('hidden', s !== step);
+    if (step !== 'form' && step !== 'load') { try { sessionStorage.removeItem('peer-open'); } catch {} }
     if (!same) window.scrollTo(0, 0);
   }
   function toast(msg) {
@@ -252,7 +253,7 @@ button:disabled { opacity: .45; cursor: default; }
   function applyTheme(name) {
     const th = PEER_THEMES[name] ? name : 'plain';
     if (th === curTheme) return;
-    curTheme = th; stopTheme?.(); stopTheme = null;
+    curTheme = th; stopTheme?.(); stopTheme = null; store.set('theme', th);
     const root = document.documentElement, t = PEER_THEMES[th];
     if (th === 'plain') { delete root.dataset.theme; delete root.dataset.tone; root.style.backgroundColor = ''; return; }
     root.style.backgroundColor = t.bg[1]; // 背景萬一來不及畫，露出的是主題底色而不是白色
@@ -456,7 +457,8 @@ button:disabled { opacity: .45; cursor: default; }
   // ── 啟動：網址帶 ?code= 或上次輸入過的代碼 ──
   const urlCode = new URLSearchParams(location.search).get('code');
   const start = store.get('mine') || urlCode || store.get('code');
-  if (start) { $('code').value = start; enterCode(start); }
+  // 重新進來（含手機下拉重新整理）時先套上次的背景、顯示載入中，不閃出輸入代碼頁
+  if (start) { applyTheme(store.get('theme')); show('load'); $('code').value = start; enterCode(start); }
   else show('code');
 })();
 </script>
