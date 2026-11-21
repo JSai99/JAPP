@@ -104,7 +104,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; min-width: 80px; }
 .bar i { display: block; height: 100%; background: var(--ok); }
 .comment { border-left: 3px solid var(--accent-soft); padding: 4px 10px; margin: 6px 0; font-size: 14px; white-space: pre-wrap; }
-.comment .by { color: var(--dim); font-size: 12px; }
+.comment .by { color: var(--dim); font-size: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.comment .by button { margin-left: auto; padding: 2px 8px; }
+.comment.hid .ctext { text-decoration: line-through; opacity: .5; }
+.comment.hid { border-left-color: var(--line); }
 .login { max-width: 380px; margin: 60px auto; }
 .login input { width: 100%; margin-top: 8px; }
 /* 列印：只印代碼小紙條 */
@@ -841,19 +844,39 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     const groupOf = (id) => A.members.find((m) => m.id === id)?.group.name || '?';
     const textCrit = A.crit.filter((c) => qt(c) === 'text');
     const block = (title, rs, kind) => {
-      const items = rs.flatMap((r) => commentTexts(r, textCrit.filter((c) => c.kind === kind)).map((t) => ({ r, t })));
-      return items.length ? `<h3>${esc(title)}</h3>` + items.map(({ r, t }) => `<div class="comment">${esc(t)}${kind === 'inter' ? `<div class="by">— 來自${esc(groupOf(r.rater_id))}</div>` : ''}</div>`).join('') : '';
+      const items = rs.flatMap((r) => commentItems(r, textCrit.filter((c) => c.kind === kind)).map((it) => ({ r, ...it })));
+      return items.length ? `<h3>${esc(title)}</h3>` + items.map(({ r, key, text }) => {
+        const hid = isHidden(r, key);
+        return `<div class="comment ${hid ? 'hid' : ''}"><div class="ctext">${esc(text)}</div><div class="by">${kind === 'inter' ? `— 來自${esc(groupOf(r.rater_id))}` : ''}${hid ? '<span class="pill">已隱藏，不會匯出</span>' : ''}<button class="ghost small" data-hide="${r.id}" data-kind="${kind}" data-key="${esc(key)}">${hid ? '恢復公開' : '隱藏'}</button></div></div>`;
+      }).join('') : '';
     };
     const html = A.groups.map((g) => block(`給 ${g.name}`, A.inter.filter((r) => r.target_group_id === g.id), 'inter')).join('')
       + A.members.map((m) => block(`給 ${m.group.name}・${m.name}（組內，匿名）`, A.intraScores.filter((r) => r.target_member_id === m.id), 'intra')).join('');
-    $('r-comments').innerHTML = html || '<p class="sub" style="margin-top:8px">還沒有文字回饋。</p>';
+    const nHid = [...A.inter, ...A.intraScores].reduce((n, r) => n + (r.hidden_texts?.length || 0), 0);
+    $('r-comments').innerHTML = html ? `<p class="sub" style="margin-top:8px">公布前請先過目。不適合公開的評語按「隱藏」，匯出時就不會出現（目前隱藏 ${nHid} 則）。</p>` + html
+      : '<p class="sub" style="margin-top:8px">還沒有文字回饋。</p>';
+    $('r-comments').querySelectorAll('[data-hide]').forEach((b) => b.onclick = async () => {
+      const list = b.dataset.kind === 'inter' ? A.inter : A.intraScores;
+      const r = list.find((x) => x.id === b.dataset.hide), key = b.dataset.key, cur = r.hidden_texts || [];
+      const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+      b.disabled = true;
+      try { await q(db.from(b.dataset.kind === 'inter' ? 'inter_ratings' : 'intra_scores').update({ hidden_texts: next }).eq('id', r.id)); r.hidden_texts = next; renderResults(); }
+      catch (e) { b.disabled = false; fail(e); }
+    });
   }
-  function commentTexts(r, textCrit) {
+  const isHidden = (r, key) => (r.hidden_texts || []).includes(key);
+  // 每則文字回饋帶一個 key（題目 id；舊格式整段評語用 '_'），隱藏時記這個 key
+  function commentItems(r, textCrit) {
     if (!r.comment) return [];
-    try { const o = JSON.parse(r.comment); if (o && typeof o === 'object') return textCrit.filter((c) => o[c.id]).map((c) => (textCrit.length > 1 ? `【${c.label}】` : '') + o[c.id]).concat(Object.keys(o).filter((k) => !textCrit.some((c) => c.id === k)).map((k) => o[k])); }
-    catch {}
-    return [r.comment];
+    try {
+      const o = JSON.parse(r.comment);
+      if (o && typeof o === 'object') return textCrit.filter((c) => o[c.id]).map((c) => ({ key: c.id, text: (textCrit.length > 1 ? `【${c.label}】` : '') + o[c.id] }))
+        .concat(Object.keys(o).filter((k) => !textCrit.some((c) => c.id === k)).map((k) => ({ key: k, text: o[k] })));
+    } catch {}
+    return [{ key: '_', text: r.comment }];
   }
+  // 匯出用：只取沒被隱藏的
+  const commentTexts = (r, textCrit) => commentItems(r, textCrit).filter((it) => !isHidden(r, it.key)).map((it) => it.text);
 
   // CSV（加 BOM，Excel 直接開不會亂碼）
   function downloadCsv(name, rows) {
