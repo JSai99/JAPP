@@ -1,0 +1,9 @@
+{
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/", "destination": "/peer-review/index.html" },
+    { "source": "/config.js", "destination": "/peer-review/config.js" },
+    { "source": "/colors.js", "destination": "/peer-review/colors.js" },
+    { "source": "/themes.js", "destination": "/peer-review/themes.js" }
+  ]
+}

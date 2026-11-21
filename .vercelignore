@@ -1,0 +1,12 @@
+# Vercel（學生互評網址）只放學生需要的檔案，其他工具與說明文件不上傳
+/*
+!/vercel.json
+!/peer-review
+/peer-review/README.md
+/peer-review/supabase
+!/shared
+/shared/*
+!/shared/vendor
+/shared/vendor/*
+!/shared/vendor/supabase.js
+!/shared/vendor/qrcode.js
