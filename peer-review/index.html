@@ -353,7 +353,7 @@ button:disabled { opacity: .45; cursor: default; }
     $('err-form').textContent = '';
     $('form-crit').innerHTML = crits(kind).map((c) => `
       <div class="crit" data-id="${c.id}">
-        <div class="q">${esc(c.label)}${qt(c) === 'text' ? ' <span class="sub">（選填）</span>' : ''}</div>
+        <div class="q">${esc(c.label)}${qt(c) === 'text' ? ` <span class="sub">（${c.required ? '必填' : '選填'}）</span>` : ''}</div>
         ${c.description ? `<div class="d">${esc(c.description)}</div>` : ''}
         ${qt(c) === 'text'
           ? `<textarea data-text="${c.id}" placeholder="寫下具體的觀察或建議">${esc(S.answers[c.id] || '')}</textarea>`
@@ -389,11 +389,11 @@ button:disabled { opacity: .45; cursor: default; }
     const scores = {}, texts = {};
     const missing = [];
     for (const c of crits(kind)) {
-      if (qt(c) === 'text') { const v = (S.answers[c.id] || '').trim(); if (v) texts[c.id] = v; }
+      if (qt(c) === 'text') { const v = (S.answers[c.id] || '').trim(); if (v) texts[c.id] = v; else if (c.required) missing.push(c.label); }
       else if (S.answers[c.id]) scores[c.id] = S.answers[c.id];
       else missing.push(c.label);
     }
-    if (missing.length) { $('err-form').textContent = '還沒評分：' + missing.join('、'); return; }
+    if (missing.length) { $('err-form').textContent = '還沒完成：' + missing.join('、'); return; }
     const name = targets(kind).find((x) => x.id === id).name;
     if (!confirm(`確定送出對「${name}」的評分？送出後無法修改。`)) return;
     $('btn-submit').disabled = true;

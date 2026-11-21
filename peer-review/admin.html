@@ -65,7 +65,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .actw .act { padding-right: 44px; }
 .actw .actdel { position: absolute; top: 8px; right: 8px; padding: 4px 8px; }
 .act b { display: block; font-size: 16px; margin-bottom: 4px; }
-.critrow { display: grid; grid-template-columns: 26px 1fr 1.4fr 110px auto; gap: 8px; align-items: center; margin-top: 8px; }
+.critrow { display: grid; grid-template-columns: 26px 1fr 1.4fr 90px 84px auto; gap: 8px; align-items: center; margin-top: 8px; }
 .critrow input { width: 100%; }
 .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
 .grp { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
@@ -173,7 +173,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       </div>
       <div class="card" id="crit-card">
         <h2>評分面向</h2>
-        <p class="sub">「分數」題用上方量尺；「填空」題為選填文字；「票選」題讓學生從其他組（組間）或組員（組內）中選一個。已有學生送出評分後，請不要刪除面向，否則該面向的分數會遺失。</p>
+        <p class="sub">「分數」題用上方量尺；「填空」題可設為必填或選填；「票選」題讓學生從其他組（組間）或組員（組內）中選一個。已有學生送出評分後，請不要刪除面向，否則該面向的分數會遺失。</p>
         <h3>組間互評（評其他組）</h3>
         <div id="crit-inter"></div>
         <button class="ghost small" data-add="inter" style="margin-top:8px">＋ 新增面向</button>
@@ -354,7 +354,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         ...['參與程度', '貢獻度', '合作態度'].map((label, i) => ({ kind: 'intra', position: i, label, qtype: 'score' })),
         { kind: 'intra', position: 3, label: '組內最力推哪位組員？', description: '選一位這次最值得肯定的組員（不能選自己）', qtype: 'pick' },
         { kind: 'intra', position: 4, label: '想對這位組員說', qtype: 'text', is_text: true },
-      ].map((c) => ({ description: '', is_text: false, ...c, activity_id: a.id })); // 每筆欄位要一致，否則批次新增會失敗
+      ].map((c) => ({ description: '', is_text: false, required: false, ...c, activity_id: a.id })); // 每筆欄位要一致，否則批次新增會失敗
       await q(db.from('criteria').insert(defs));
       $('new-title').value = '';
       openAct(a.id);
@@ -454,6 +454,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
           <input type="text" data-f="label" value="${esc(c.label)}" placeholder="面向名稱">
           <input type="text" data-f="description" value="${esc(c.description || '')}" placeholder="說明（選填，學生會看到）">
           <select data-f="qtype">${[['score', '分數'], ['text', '填空'], ['pick', '票選']].map(([v, t]) => `<option value="${v}" ${qt(c) === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+          ${qt(c) === 'text' ? `<select data-req title="學生是否一定要填"><option value="0" ${c.required ? '' : 'selected'}>選填</option><option value="1" ${c.required ? 'selected' : ''}>必填</option></select>` : '<span></span>'}
           <span class="row" style="gap:4px"><button class="ghost small" data-mv="-1" title="上移">↑</button><button class="ghost small" data-mv="1" title="下移">↓</button><button class="danger small" data-del title="刪除">✕</button></span>
         </div>`).join('') || '<p class="sub">（沒有面向）</p>';
     }
@@ -461,7 +462,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       const list = critDraft[row.dataset.kind], i = +row.dataset.i;
       row.querySelectorAll('[data-f]').forEach((inp) => inp.oninput = inp.onchange = () => {
         list[i][inp.dataset.f] = inp.value;
+        if (inp.dataset.f === 'qtype' && inp.type !== 'text') drawCrit();
       });
+      const req = row.querySelector('[data-req]');
+      if (req) req.onchange = () => { list[i].required = req.value === '1'; };
       row.querySelectorAll('[data-mv]').forEach((b) => b.onclick = () => {
         const j = i + +b.dataset.mv; if (j < 0 || j >= list.length) return;
         [list[i], list[j]] = [list[j], list[i]]; drawCrit();
@@ -488,7 +492,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     try {
       if (removed.length) await q(db.from('criteria').delete().in('id', removed.map((c) => c.id)));
       const rows = all.map((c) => ({ ...(c.id ? { id: c.id } : {}), activity_id: A.act.id, kind: c.kind, position: c.position,
-                                     label: c.label.trim(), description: (c.description || '').trim(), qtype: qt(c), is_text: qt(c) === 'text' }));
+                                     label: c.label.trim(), description: (c.description || '').trim(), qtype: qt(c), is_text: qt(c) === 'text', required: qt(c) === 'text' && !!c.required }));
       const upd = rows.filter((r) => r.id), ins = rows.filter((r) => !r.id);
       if (upd.length) await q(db.from('criteria').upsert(upd));
       if (ins.length) await q(db.from('criteria').insert(ins));
