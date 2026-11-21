@@ -124,7 +124,6 @@ button:disabled { opacity: .45; cursor: default; }
   <section id="step-name" class="hidden">
     <div class="top">
       <div><h1 id="title-name"></h1><p class="sub" id="group-name"></p></div>
-      <button class="linkbtn" id="back-code">換代碼</button>
     </div>
     <div class="card">
       <h2>你是哪一位？</h2>
@@ -228,12 +227,15 @@ button:disabled { opacity: .45; cursor: default; }
       const saved = store.get('me:' + code);
       if (saved && S.info.members.some((m) => m.id === saved)) { await claim(saved, true); }
       else renderNames();
-    } catch (e) { $('err-code').textContent = errMsg(e); }
+    } catch (e) {
+      $('err-code').textContent = errMsg(e);
+      if (code === store.get('mine') && /找不到/.test(e.message)) store.del('mine'); // 活動已刪除，才允許輸入新代碼
+      show('code');
+    }
     finally { $('btn-code').disabled = false; }
   }
   $('btn-code').onclick = () => enterCode($('code').value);
   $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') enterCode($('code').value); });
-  $('back-code').onclick = () => { store.del('code'); applyTheme('plain'); show('code'); };
   // 活動主題背景
   let stopTheme = null, curTheme = 'plain';
   function applyTheme(name) {
@@ -267,6 +269,7 @@ button:disabled { opacity: .45; cursor: default; }
       S.me = S.info.members.find((m) => m.id === memberId);
       S.done.inter = new Set(r.inter_done); S.done.intra = new Set(r.intra_done); S.done.pick = new Set(r.pick_done || []);
       store.set('me:' + S.code, memberId);
+      store.set('mine', S.code); // 選定名字後，這支手機就固定用這個代碼，不能換
       renderHome();
     } catch (e) {
       if (silent) { store.del('me:' + S.code); renderNames(); }
@@ -427,7 +430,7 @@ button:disabled { opacity: .45; cursor: default; }
 
   // ── 啟動：網址帶 ?code= 或上次輸入過的代碼 ──
   const urlCode = new URLSearchParams(location.search).get('code');
-  const start = urlCode || store.get('code');
+  const start = store.get('mine') || urlCode || store.get('code');
   if (start) { $('code').value = start; enterCode(start); }
   else show('code');
 })();
