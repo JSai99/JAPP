@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<meta name="theme-color" content="#f4f5f7">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>同儕互評</title>
 <style>
@@ -11,9 +12,23 @@
   --accent: #3b6fe0; --accent-soft: #e8efff; --seg: #eceff3; --ok: #1f8a4c; --ok-soft: #e3f5ea; --warn: #b4540a; --err: #c62828;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #1d2023; --card: #2a2e32; --line: #3d4247; --text: #e8eaed; --dim: #9aa0a6;
+  :root:not([data-tone=light]) { --bg: #1d2023; --card: #2a2e32; --line: #3d4247; --text: #e8eaed; --dim: #9aa0a6;
           --accent: #6b9bff; --accent-soft: #23314f; --seg: #363b41; --ok: #4cc27f; --ok-soft: #1e3a2a; --warn: #f0a050; --err: #ff6b6b; }
 }
+/* 活動主題：深色主題強制深色配色、淺色主題強制淺色配色 */
+:root[data-tone=dark] { --bg: #1d2023; --card: #2a2e32; --line: #3d4247; --text: #e8eaed; --dim: #a9afb6;
+          --accent: #6b9bff; --accent-soft: #23314f; --seg: #363b41; --ok: #4cc27f; --ok-soft: #1e3a2a; --warn: #f0a050; --err: #ff6b6b; }
+:root[data-tone=light] { --bg: #f4f5f7; --card: #fff; --line: #dfe2e6; --text: #1f2328; --dim: #67707a;
+  --accent: #3b6fe0; --accent-soft: #e8efff; --seg: #eceff3; --ok: #1f8a4c; --ok-soft: #e3f5ea; --warn: #b4540a; --err: #c62828; }
+:root[data-theme=candle] { --accent: #d98a3a; --accent-soft: #3a2a1c; --card: #2a211b; --line: #45372b; --seg: #3a2f27; }
+:root[data-theme=starry] { --accent: #8f7dff; --accent-soft: #2c2a5e; --card: #1f2150; --line: #36397a; --seg: #2c2f6a; }
+:root[data-theme=ember]  { --accent: #e8743f; --accent-soft: #3a1e1a; --card: #2a1a1c; --line: #45292b; --seg: #3a2527; }
+:root[data-theme=pastel] { --accent: #d0628c; --accent-soft: #fbe6ee; }
+:root[data-theme=bubble] { --accent: #4a7be6; }
+#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+:root[data-tone] body { background: transparent; }
+:root[data-tone] .card, :root[data-tone] .item, :root[data-tone] .pickcard {
+  background: color-mix(in srgb, var(--card) 88%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 body {
   font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
   background: var(--bg); color: var(--text); line-height: 1.55;
@@ -77,7 +92,8 @@ button:disabled { opacity: .45; cursor: default; }
 .progress { font-size: 14px; color: var(--dim); margin-top: 6px; }
 .banner { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; margin-top: 14px; font-size: 15px; }
 .banner.warn { background: #fff4e5; color: #7a3d00; }
-@media (prefers-color-scheme: dark) { .banner.warn { background: #3a2a14; color: #ffd29a; } }
+@media (prefers-color-scheme: dark) { :root:not([data-tone=light]) .banner.warn { background: #3a2a14; color: #ffd29a; } }
+:root[data-tone=dark] .banner.warn { background: #3a2a14; color: #ffd29a; }
 .gchip { display: inline-block; color: #fff; font-weight: 800; padding: 7px 14px; border-radius: 10px; font-size: 17px; letter-spacing: .5px; line-height: 1.35; text-shadow: 0 1px 1px rgba(0,0,0,.12); }
 .gchip.sm { font-size: 14px; padding: 3px 10px; border-radius: 8px; margin-right: 6px; }
 .item .gchip { font-size: 16px; }
@@ -88,6 +104,7 @@ button:disabled { opacity: .45; cursor: default; }
 </style>
 </head>
 <body>
+<canvas id="bg" aria-hidden="true"></canvas>
 <main>
   <!-- 1. 輸入組別代碼 -->
   <section id="step-code">
@@ -151,6 +168,7 @@ button:disabled { opacity: .45; cursor: default; }
 <script src="../shared/vendor/supabase.js"></script>
 <script src="config.js"></script>
 <script src="colors.js"></script>
+<script src="themes.js"></script>
 <script>
 (() => {
   const db = supabase.createClient(PEER_CONFIG.supabaseUrl, PEER_CONFIG.supabaseKey, { auth: { persistSession: false } });
@@ -201,6 +219,7 @@ button:disabled { opacity: .45; cursor: default; }
     $('btn-code').disabled = true;
     try {
       S.info = await rpc('student_enter', { p_code: code });
+      applyTheme(S.info.activity.theme);
       S.code = code;
       store.set('code', code);
       const saved = store.get('me:' + code);
@@ -211,7 +230,19 @@ button:disabled { opacity: .45; cursor: default; }
   }
   $('btn-code').onclick = () => enterCode($('code').value);
   $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') enterCode($('code').value); });
-  $('back-code').onclick = () => { store.del('code'); show('code'); };
+  $('back-code').onclick = () => { store.del('code'); applyTheme('plain'); show('code'); };
+  // 活動主題背景
+  let stopTheme = null, curTheme = 'plain';
+  function applyTheme(name) {
+    const th = PEER_THEMES[name] ? name : 'plain';
+    if (th === curTheme) return;
+    curTheme = th; stopTheme?.(); stopTheme = null;
+    const root = document.documentElement, t = PEER_THEMES[th];
+    if (th === 'plain') { delete root.dataset.theme; delete root.dataset.tone; return; }
+    root.dataset.theme = th; root.dataset.tone = t.dark ? 'dark' : 'light';
+    document.querySelector('meta[name=theme-color]')?.setAttribute('content', t.bg[0]);
+    stopTheme = playTheme(th, $('bg'));
+  }
 
   // ── 2. 選名字 ──
   function renderNames() {
