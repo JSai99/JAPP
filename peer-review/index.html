@@ -97,6 +97,8 @@ button:disabled { opacity: .45; cursor: default; }
 .gchip { display: inline-block; color: #fff; font-weight: 800; padding: 7px 14px; border-radius: 10px; font-size: 17px; letter-spacing: .5px; line-height: 1.35; text-shadow: 0 1px 1px rgba(0,0,0,.12); }
 .gchip.sm { font-size: 14px; padding: 3px 10px; border-radius: 8px; margin-right: 6px; }
 .item .gchip { font-size: 16px; }
+.item .lead { display: flex; align-items: center; gap: 10px; }
+.ord { font-size: 12px; font-weight: 700; color: var(--dim); white-space: nowrap; }
 .item.done .gchip { opacity: .55; }
 .hidden { display: none !important; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
@@ -193,8 +195,9 @@ button:disabled { opacity: .45; cursor: default; }
   const S = { code: '', info: null, me: null, done: { inter: new Set(), intra: new Set(), pick: new Set() }, tab: 'inter', target: null, answers: {} };
 
   function show(step) {
+    const same = !$('step-' + step).classList.contains('hidden');
     for (const s of ['code', 'name', 'home', 'form']) $('step-' + s).classList.toggle('hidden', s !== step);
-    window.scrollTo(0, 0);
+    if (!same) window.scrollTo(0, 0);
   }
   function toast(msg) {
     const t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
@@ -304,7 +307,7 @@ button:disabled { opacity: .45; cursor: default; }
       const d = done.has(t.id);
       const draft = !d && store.get(`draft:${S.code}:${S.me.id}:${t.id}`);
       return `<button class="item ${d ? 'done' : ''}" data-id="${t.id}" ${d ? 'disabled' : ''}>
-        ${S.tab === 'inter' ? groupChip(t.name, t.position) : `<span>${esc(t.name)}</span>`}<span class="tag">${d ? '已送出 ✓' : draft ? '草稿' : '去評分'}</span></button>`;
+        ${S.tab === 'inter' ? `<span class="lead">${groupChip(t.name, t.position)}${t.report_order ? `<span class="ord">第 ${t.report_order} 個報告</span>` : ''}</span>` : `<span>${esc(t.name)}</span>`}<span class="tag">${d ? '已送出 ✓' : draft ? '草稿' : '去評分'}</span></button>`;
     }).join('');
     $('list').querySelectorAll('.item:not(.done)').forEach((b) => b.onclick = () => openForm(S.tab, b.dataset.id));
     show('home');
@@ -318,6 +321,16 @@ button:disabled { opacity: .45; cursor: default; }
     } catch (e) { alertErr(e); }
   };
   function alertErr(e) { $('progress').textContent = errMsg(e); }
+  // 停在總覽頁時每 20 秒默默更新：老師調整報告順序或開放評分，學生不用自己按重新整理
+  setInterval(async () => {
+    if (document.hidden || !S.me || $('step-home').classList.contains('hidden')) return;
+    try {
+      const info = await rpc('student_enter', { p_code: S.code });
+      if (JSON.stringify(info) === JSON.stringify(S.info)) return;
+      S.info = info; applyTheme(info.activity.theme);
+      if (!$('step-home').classList.contains('hidden')) renderHome();
+    } catch {}
+  }, 20000);
 
   function renderPicks(pq) {
     const opts = targets(S.tab);

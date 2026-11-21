@@ -65,8 +65,29 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .actw .act { padding-right: 44px; }
 .actw .actdel { position: absolute; top: 8px; right: 8px; padding: 4px 8px; }
 .act b { display: block; font-size: 16px; margin-bottom: 4px; }
-.critrow { display: grid; grid-template-columns: 26px 1fr 1.4fr 90px 84px auto; gap: 8px; align-items: center; margin-top: 8px; }
+.critrow { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px 10px; align-items: center; margin-top: 8px;
+           border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card); }
+.critrow:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .critrow input { width: 100%; }
+.critrow .num { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft, #e8efff); color: var(--accent); font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.critrow .lbl { font-weight: 600; }
+.critrow .meta { grid-column: 2 / 4; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.critrow .meta input { flex: 1; min-width: 180px; font-size: 13px; }
+.critrow .acts { display: flex; gap: 4px; margin-left: auto; }
+.reqsw { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--dim); cursor: pointer; white-space: nowrap; user-select: none; }
+.critrow .reqsw input, .reqsw input { appearance: none; flex: none; min-width: 0; padding: 0; border: 0; width: 34px; height: 20px; border-radius: 99px; background: var(--line); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+.reqsw input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.reqsw input:checked { background: var(--accent); }
+.reqsw input:checked::after { left: 16px; }
+.reqsw input:checked + span { color: var(--accent); font-weight: 600; }
+.ordlist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; min-height: 40px; align-items: center; }
+.ordlist .slot { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.ordlist .slot b { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; display: grid; place-items: center; }
+.ordlist .slot button { padding: 2px 6px; }
+.ordlist .arrow { color: var(--dim); }
+.ordpool { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.ordpool button { padding: 0; background: none; border: 0; cursor: pointer; }
+.ordpool button:hover .gchip { filter: brightness(1.08); transform: translateY(-1px); }
 .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
 .grp { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .grp .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 20px; font-weight: 800; letter-spacing: 3px; color: var(--accent); }
@@ -88,7 +109,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   #slips { display: grid !important; grid-template-columns: 1fr 1fr; gap: 0; }
   .slip { border: 1px dashed #999; padding: 18px; text-align: center; page-break-inside: avoid; }
   .slip .c { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 30px; font-weight: 800; letter-spacing: 5px; margin: 6px 0; }
-  .slip .u { font-size: 11px; color: #444; word-break: break-all; }
+  .slip .t { font-size: 13px; color: #333; }
+  .slip .g { font-size: 18px; font-weight: 800; margin-top: 2px; }
+  .slip svg { width: 120px; height: 120px; display: block; margin: 6px auto 2px; }
+  .slip .h { font-size: 11px; color: #555; }
 }
 </style>
 </head>
@@ -227,6 +251,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
     <!-- ④ 進度 -->
     <div id="t-progress" class="hidden">
+      <div class="card">
+        <div class="row"><h2 style="margin:0">報告順序</h2><span style="flex:1"></span><button class="ghost small" id="btn-ord-rand">🎲 隨機排</button><button class="ghost small" id="btn-ord-clear">清除</button></div>
+        <p class="sub">抽到哪一組，就依序點那一組。學生頁「評其他組」會照這個順序排，約 20 秒內自動更新。</p>
+        <div class="ordlist" id="ord-done"></div>
+        <div class="ordpool" id="ord-pool"></div>
+      </div>
       <div class="card">
         <div class="row"><h2 style="margin:0">填寫進度</h2><span class="sub" id="prog-time"></span><span style="flex:1"></span><button class="ghost small" id="btn-prog-refresh">重新整理</button></div>
         <p class="sub">每 15 秒自動更新。只顯示各組有幾人完成，不顯示個人與分數。</p>
@@ -450,12 +480,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     for (const kind of ['inter', 'intra']) {
       $('crit-' + kind).innerHTML = critDraft[kind].map((c, i) => `
         <div class="critrow" data-kind="${kind}" data-i="${i}">
-          <span class="sub">${i + 1}.</span>
-          <input type="text" data-f="label" value="${esc(c.label)}" placeholder="面向名稱">
-          <input type="text" data-f="description" value="${esc(c.description || '')}" placeholder="說明（選填，學生會看到）">
+          <span class="num">${i + 1}</span>
+          <input type="text" class="lbl" data-f="label" value="${esc(c.label)}" placeholder="面向名稱">
           <select data-f="qtype">${[['score', '分數'], ['text', '填空'], ['pick', '票選']].map(([v, t]) => `<option value="${v}" ${qt(c) === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
-          ${qt(c) === 'text' ? `<select data-req title="學生是否一定要填"><option value="0" ${c.required ? '' : 'selected'}>選填</option><option value="1" ${c.required ? 'selected' : ''}>必填</option></select>` : '<span></span>'}
-          <span class="row" style="gap:4px"><button class="ghost small" data-mv="-1" title="上移">↑</button><button class="ghost small" data-mv="1" title="下移">↓</button><button class="danger small" data-del title="刪除">✕</button></span>
+          <div class="meta">
+            <input type="text" data-f="description" value="${esc(c.description || '')}" placeholder="說明（選填，學生會看到）">
+            ${qt(c) === 'text' ? `<label class="reqsw" title="學生一定要填才能送出"><input type="checkbox" data-req ${c.required ? 'checked' : ''}><span>必填</span></label>` : ''}
+            <span class="acts"><button class="ghost small" data-mv="-1" title="上移">↑</button><button class="ghost small" data-mv="1" title="下移">↓</button><button class="danger small" data-del title="刪除">✕</button></span>
+          </div>
         </div>`).join('') || '<p class="sub">（沒有面向）</p>';
     }
     document.querySelectorAll('.critrow').forEach((row) => {
@@ -465,7 +497,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         if (inp.dataset.f === 'qtype' && inp.type !== 'text') drawCrit();
       });
       const req = row.querySelector('[data-req]');
-      if (req) req.onchange = () => { list[i].required = req.value === '1'; };
+      if (req) req.onchange = () => { list[i].required = req.checked; };
       row.querySelectorAll('[data-mv]').forEach((b) => b.onclick = () => {
         const j = i + +b.dataset.mv; if (j < 0 || j >= list.length) return;
         [list[i], list[j]] = [list[j], list[i]]; drawCrit();
@@ -618,17 +650,49 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   $('btn-copy').onclick = () => navigator.clipboard.writeText(studentUrl()).then(() => { $('btn-copy').textContent = '已複製 ✓'; setTimeout(() => $('btn-copy').textContent = '複製網址', 1500); });
   function printSlips() {
     if (!A.groups.length) { alert('還沒有名單'); return; }
+    // 每張紙條：組名、代碼、QR code（掃描後直接帶入這組的代碼）。不印網址
     const url = studentUrl();
-    $('slips').innerHTML = A.groups.flatMap((g) => g.members.length ? [g] : []).map((g) =>
-      `<div class="slip"><div>${esc(A.act.title)}・${esc(g.name)}</div><div class="c">${esc(g.code)}</div><div class="u">${esc(url)}</div></div>`).join('');
+    $('slips').innerHTML = A.groups.flatMap((g) => g.members.length ? [g] : []).map((g) => {
+      const qr = qrcode(0, 'M'); qr.addData(url + (url.includes('?') ? '&' : '?') + 'code=' + encodeURIComponent(g.code)); qr.make();
+      return `<div class="slip"><div class="t">${esc(A.act.title)}</div><div class="g">${esc(g.name)}</div>${qr.createSvgTag({ cellSize: 4, margin: 1, scalable: true })}<div class="c">${esc(g.code)}</div><div class="h">掃描 QR code，或在評分頁輸入代碼</div></div>`;
+    }).join('');
     window.print();
   }
   $('btn-print').onclick = printSlips; $('btn-print2').onclick = printSlips;
 
+  // 報告順序：課堂抽籤後依序點選
+  function renderOrder() {
+    const done = A.groups.filter((g) => g.report_order).sort((a, b) => a.report_order - b.report_order);
+    const pool = A.groups.filter((g) => !g.report_order);
+    $('ord-done').innerHTML = done.length ? done.map((g, i) => `${i ? '<span class="arrow">→</span>' : ''}<span class="slot"><b>${i + 1}</b>${groupChip(g.name, g.position, 'sm')}<button class="ghost small" data-unord="${g.id}" title="移回未排">✕</button></span>`).join('')
+      : '<span class="sub">還沒排。下面點選第一個報告的組別。</span>';
+    $('ord-pool').innerHTML = pool.length ? pool.map((g) => `<button data-ord="${g.id}" title="排在下一個">${groupChip(g.name, g.position)}</button>`).join('')
+      : '<span class="sub">全部排好了 ✓</span>';
+    $('ord-pool').querySelectorAll('[data-ord]').forEach((b) => b.onclick = () => saveOrder([...done.map((g) => g.id), b.dataset.ord]));
+    $('ord-done').querySelectorAll('[data-unord]').forEach((b) => b.onclick = () => saveOrder(done.map((g) => g.id).filter((id) => id !== b.dataset.unord)));
+  }
+  async function saveOrder(ids) {
+    try {
+      await Promise.all(A.groups.map((g) => {
+        const o = ids.indexOf(g.id) + 1 || null;
+        return o === (g.report_order || null) ? null : q(db.from('groups').update({ report_order: o }).eq('id', g.id));
+      }));
+      A.groups.forEach((g) => { g.report_order = ids.indexOf(g.id) + 1 || null; });
+      renderOrder();
+    } catch (e) { fail(e); }
+  }
+  $('btn-ord-rand').onclick = () => {
+    if (A.groups.some((g) => g.report_order) && !confirm('重新隨機排列所有組別？')) return;
+    const ids = A.groups.map((g) => g.id);
+    for (let i = ids.length - 1; i > 0; i--) { const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+    saveOrder(ids);
+  };
+  $('btn-ord-clear').onclick = () => { if (confirm('清除報告順序？')) saveOrder([]); };
+
   // ④ 進度（只看各組完成人數，不顯示個人）
   let pollTimer = null;
   function stopPoll() { clearInterval(pollTimer); pollTimer = null; }
-  async function startPoll() { await refreshProgress(); pollTimer = setInterval(() => { if (!document.hidden) refreshProgress(); }, 15000); }
+  async function startPoll() { renderOrder(); await refreshProgress(); pollTimer = setInterval(() => { if (!document.hidden) refreshProgress(); }, 15000); }
   $('btn-prog-refresh').onclick = refreshProgress;
   async function refreshProgress() {
     try { await reloadRatings(); } catch (e) { $('prog-time').textContent = '更新失敗：' + e.message; return; }
