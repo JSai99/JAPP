@@ -235,8 +235,13 @@ button:disabled { opacity: .45; cursor: default; }
       applyTheme(S.info.activity.theme);
       S.code = code;
       store.set('code', code);
-      const saved = store.get('me:' + code);
-      if (saved && S.info.members.some((m) => m.id === saved)) { await claim(saved, true); }
+      const saved = store.get('me:' + code), mine = S.info.members.find((m) => m.id === saved);
+      if (mine && !mine.claimed) {
+        // 這支手機選過名字，但老師按了重設：解除鎖定，改掃的新代碼優先，否則回到選名字
+        forgetMe();
+        if (urlCode && urlCode.toUpperCase() !== code) return enterCode(urlCode);
+        renderNames(); $('err-name').textContent = '老師已重設，請重新選擇你的名字。';
+      } else if (mine) await claim(saved, true);
       else renderNames();
     } catch (e) {
       $('err-code').textContent = errMsg(e);
@@ -343,11 +348,19 @@ button:disabled { opacity: .45; cursor: default; }
   $('btn-refresh').onclick = async () => {
     try {
       S.info = await rpc('student_enter', { p_code: S.code });
+      if (isReset(S.info)) return onReset();
       await claim(S.me.id, false);
       toast('已更新');
     } catch (e) { alertErr(e); }
   };
   function alertErr(e) { $('progress').textContent = errMsg(e); }
+  // 老師按了重設：清掉這支手機記得的名字與代碼，回到選名字
+  function forgetMe() {
+    store.del('me:' + S.code); store.del('mine'); S.me = null;
+    try { sessionStorage.removeItem('peer-open'); } catch {}
+  }
+  const isReset = (info) => S.me && info.members.some((m) => m.id === S.me.id && !m.claimed);
+  function onReset() { forgetMe(); renderNames(); $('err-name').textContent = '老師已重設，請重新選擇你的名字。'; }
   // 停在總覽頁時每 10 秒默默更新：老師調整報告順序或開放評分，學生不用自己按重新整理
   setInterval(async () => {
     if (document.hidden || !S.me || $('step-home').classList.contains('hidden')) return;
@@ -355,6 +368,7 @@ button:disabled { opacity: .45; cursor: default; }
       const info = await rpc('student_enter', { p_code: S.code });
       if (JSON.stringify(info) === JSON.stringify(S.info)) return;
       S.info = info; applyTheme(info.activity.theme);
+      if (isReset(info)) return onReset();
       if (!$('step-home').classList.contains('hidden')) renderHome();
     } catch {}
   }, 10000);
@@ -376,7 +390,7 @@ button:disabled { opacity: .45; cursor: default; }
       try {
         await rpc('student_pick', { p_code: S.code, p_member: S.me.id, p_token: deviceToken(), p_criterion: cid, p_target: b.dataset.t });
         S.done.pick.add(cid); toast('已送出 ✓'); renderHome();
-      } catch (e) { $('progress').textContent = errMsg(e); if (/回答過/.test(e.message)) { S.done.pick.add(cid); renderHome(); } }
+      } catch (e) { if (/已重設/.test(e.message)) return onReset(); $('progress').textContent = errMsg(e); if (/回答過/.test(e.message)) { S.done.pick.add(cid); renderHome(); } }
     });
   }
 
@@ -447,6 +461,7 @@ button:disabled { opacity: .45; cursor: default; }
       toast('已送出 ✓');
       renderHome();
     } catch (e) {
+      if (/已重設/.test(e.message)) return onReset();
       $('err-form').textContent = errMsg(e);
       if (/已經評過/.test(e.message)) { S.done[kind].add(id); }
     } finally { $('btn-submit').disabled = false; }
