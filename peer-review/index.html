@@ -86,7 +86,6 @@ button:disabled { opacity: .45; cursor: default; }
 .scale button.fill { background: var(--accent); color: #fff; }
 .scale button.fill.cur { filter: brightness(.88); }
 .scale-read { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--dim); margin-top: 6px; min-height: 1.4em; }
-.scale-read b { color: var(--accent); font-size: 15px; }
 .picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
 .picks button { background: var(--seg); color: var(--text); font-weight: 600; padding: 14px 8px; }
 .pickcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
@@ -402,7 +401,7 @@ button:disabled { opacity: .45; cursor: default; }
           : `<div class="scale" role="radiogroup" aria-label="${esc(c.label)}">${
               Array.from({ length: max }, (_, i) => i + 1).map((v) =>
                 `<button type="button" role="radio" aria-label="${v} 分${word(v) ? '，' + word(v) : ''}" data-v="${v}">${v}</button>`).join('')}</div>
-             <div class="scale-read"><span>1 = ${max === 5 ? '再加油' : '最低'}</span><b></b><span>${max} = ${max === 5 ? '超讚' : '最高'}</span></div>`}
+             <div class="scale-read"><span>1 = ${max === 5 ? '再加油' : '最低'}</span><span>${max} = ${max === 5 ? '超讚' : '最高'}</span></div>`}
       </div>`).join('');
     $('form-crit').querySelectorAll('.crit').forEach((el) => {
       const cid = el.dataset.id;
@@ -412,7 +411,6 @@ button:disabled { opacity: .45; cursor: default; }
           const n = +x.dataset.v;
           x.classList.toggle('fill', n <= v); x.classList.toggle('cur', n === v); x.setAttribute('aria-checked', n === v);
         });
-        const r = el.querySelector('.scale-read b'); if (r) r.textContent = v ? `${v} 分${word(v) ? '・' + word(v) : ''}` : '';
       };
       el.querySelectorAll('.scale button').forEach((b) => b.onclick = () => {
         S.answers[cid] = +b.dataset.v;
