@@ -299,7 +299,7 @@ button:disabled { opacity: .45; cursor: default; }
   const qt = (c) => c.qtype || (c.is_text ? 'text' : 'score');
   const crits = (kind) => S.info.criteria.filter((c) => c.kind === kind && qt(c) !== 'pick');
   const pickQs = (kind) => S.info.criteria.filter((c) => c.kind === kind && qt(c) === 'pick');
-  const WORDS5 = ['待加強', '尚可', '普通', '良好', '優秀'];
+  const WORDS5 = ['再加油', '', '', '', '超讚']; // 只有兩端有文字
   const word = (v) => (S.info.activity.scale_max === 5 ? WORDS5[v - 1] : '');
   function targets(kind) {
     return kind === 'inter' ? S.info.other_groups : S.info.members.filter((m) => m.id !== S.me.id);
@@ -402,7 +402,7 @@ button:disabled { opacity: .45; cursor: default; }
           : `<div class="scale" role="radiogroup" aria-label="${esc(c.label)}">${
               Array.from({ length: max }, (_, i) => i + 1).map((v) =>
                 `<button type="button" role="radio" aria-label="${v} 分${word(v) ? '，' + word(v) : ''}" data-v="${v}">${v}</button>`).join('')}</div>
-             <div class="scale-read"><span>1 = ${max === 5 ? '待加強' : '最低'}</span><b></b><span>${max} = ${max === 5 ? '優秀' : '最高'}</span></div>`}
+             <div class="scale-read"><span>1 = ${max === 5 ? '再加油' : '最低'}</span><b></b><span>${max} = ${max === 5 ? '超讚' : '最高'}</span></div>`}
       </div>`).join('');
     $('form-crit').querySelectorAll('.crit').forEach((el) => {
       const cid = el.dataset.id;
