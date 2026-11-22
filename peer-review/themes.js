@@ -2,15 +2,15 @@
 // 使用者若在系統設定「減少動態效果」，只畫靜止的一格。
 (() => {
   const THEMES = {
-    plain:  { label: '素雅（無動畫）', dark: null },
+    plain:  { label: '素雅', dark: null },
     candle: { label: '燭光', dark: true,  bg: ['#1b1411', '#2a1e16'] },
     starry: { label: '星空', dark: true,  bg: ['#23246a', '#0b1030'] },
     ember:  { label: '螢火', dark: true,  bg: ['#1f1214', '#160c0e'] },
     bubble: { label: '泡泡', dark: false, bg: ['#ffffff', '#fbfcff'] },
     pastel: { label: '粉彩', dark: false, bg: ['#fdf3f5', '#f4effb'] },
-    dawn:   { label: '晨曦（靜態）', dark: false, bg: ['#ffe4d2', '#ece2fb'] },
-    mint:   { label: '薄荷（靜態）', dark: false, bg: ['#def4ea', '#f6fcf9'] },
-    paper:  { label: '紙張（靜態）', dark: false, bg: ['#fbf8f1', '#f7f2e7'] },
+    dawn:   { label: '晨曦', dark: false, bg: ['#ffe4d2', '#ece2fb'] },
+    mint:   { label: '薄荷', dark: false, bg: ['#def4ea', '#f6fcf9'] },
+    paper:  { label: '紙張', dark: false, bg: ['#fbf8f1', '#f7f2e7'] },
   };
   // 手機螢幕小，裝飾要跟著縮：以短邊 700px 為基準，最小縮到 0.45 倍
   const scaleOf = (w, h) => Math.min(1, Math.max(.45, Math.min(w, h) / 700));
@@ -38,12 +38,8 @@
           for (const f of flames) {
             const fl = 1 + .08 * Math.sin(t * 3 * f.sp + f.ph) + .05 * Math.sin(t * 7.3 + f.ph * 2);
             const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * fl);
-            g.addColorStop(0, 'rgba(255,190,110,.32)'); g.addColorStop(.45, 'rgba(200,130,60,.12)'); g.addColorStop(1, 'rgba(120,70,30,0)');
+            g.addColorStop(0, 'rgba(255,190,110,.16)'); g.addColorStop(.45, 'rgba(200,130,60,.07)'); g.addColorStop(1, 'rgba(120,70,30,0)');
             ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * fl, 0, 7); ctx.fill();
-            ctx.save(); ctx.translate(f.x, f.y); ctx.scale(1, 1.6 * fl);
-            const c = ctx.createRadialGradient(0, 0, 0, 0, 0, 6);
-            c.addColorStop(0, '#fffbe8'); c.addColorStop(.6, '#ffd27a'); c.addColorStop(1, 'rgba(255,170,60,0)');
-            ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill(); ctx.restore();
           }
           for (const s of sparks) {
             s.y -= s.v * dt; s.x += s.dx * dt + Math.sin(t + s.r * 9) * .2;
@@ -100,9 +96,9 @@
             if (d.y < -10) { d.y = h + 10; d.x = rnd(0, w); }
             if (d.x < -10) d.x = w + 10; if (d.x > w + 10) d.x = -10;
             const a = .55 + .4 * Math.sin(t * 1.4 + d.ph);
-            const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r * 4);
-            g.addColorStop(0, `rgba(${d.c},${a * .45})`); g.addColorStop(1, `rgba(${d.c},0)`);
-            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 4, 0, 7); ctx.fill();
+            const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r * 2.2);
+            g.addColorStop(0, `rgba(${d.c},${a * .3})`); g.addColorStop(1, `rgba(${d.c},0)`);
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 2.2, 0, 7); ctx.fill();
             ctx.fillStyle = `rgba(${d.c},${a})`; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fill();
           }
         },
