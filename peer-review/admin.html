@@ -239,7 +239,7 @@ button.danger.small { padding: 6px 12px; font-size: 13px; }
         <p class="err" id="err-roster"></p>
       </div>
       <div class="card">
-        <div class="row"><h2 style="margin:0">組別與代碼</h2><span class="sp" style="flex:1"></span><button class="ghost small" id="btn-print">🖨 列印代碼紙條</button></div>
+        <div class="row"><h2 style="margin:0">組別與代碼</h2><span class="sp" style="flex:1"></span><span class="sub" id="roster-time"></span><button class="ghost small" id="btn-roster-refresh">🔄 重新整理</button><button class="ghost small" id="btn-print">🖨 列印代碼紙條</button></div>
         <p class="sub">學生若換手機或選錯名字，按名字旁的「重設」即可重新選擇。</p>
         <div class="groups" id="groups"></div>
       </div>
@@ -413,12 +413,15 @@ button.danger.small { padding: 6px 12px; font-size: 13px; }
   // ── 單一活動 ──
   const qt = (c) => c.qtype || (c.is_text ? 'text' : 'score');
   const hasRatings = () => A.inter.length || A.intraDone.length || A.pickDone.length;
+  const TABS = ['setup', 'roster', 'share', 'progress', 'results'];
   const A = { act: null, crit: [], groups: [], members: [], inter: [], intraScores: [], intraDone: [], picks: [], pickDone: [], tab: 'setup', excluded: new Set() };
   async function openAct(id) {
     try {
       A.act = await q(db.from('activities').select('*').eq('id', id).single());
     } catch (e) { loadList(); return; }
-    history.replaceState(null, '', '?a=' + id);
+    const urlTab = new URLSearchParams(location.search).get('t');
+    if (TABS.includes(urlTab)) A.tab = urlTab;
+    history.replaceState(null, '', '?a=' + id + (A.tab !== 'setup' ? '&t=' + A.tab : ''));
     A.excluded = new Set();
     view('act');
     await reload();
@@ -468,8 +471,9 @@ button.danger.small { padding: 6px 12px; font-size: 13px; }
   $('tabs').querySelectorAll('button').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
   function setTab(t) {
     A.tab = t;
+    history.replaceState(null, '', '?a=' + A.act.id + (t !== 'setup' ? '&t=' + t : ''));
     $('tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
-    for (const x of ['setup', 'roster', 'share', 'progress', 'results']) $('t-' + x).classList.toggle('hidden', x !== t);
+    for (const x of TABS) $('t-' + x).classList.toggle('hidden', x !== t);
     stopPoll();
     ({ setup: renderSetup, roster: renderRoster, share: renderShare, progress: startPoll, results: async () => { await reloadRatings(); renderResults(); } })[t]();
   }
@@ -644,7 +648,13 @@ button.danger.small { padding: 6px 12px; font-size: 13px; }
       await reload(); renderRoster();
     } catch (e) { fail(e, 'err-roster'); }
   };
+  $('btn-roster-refresh').onclick = async () => {
+    const b = $('btn-roster-refresh'); b.disabled = true;
+    try { await reload(); renderRoster(); } catch (e) { fail(e); } finally { b.disabled = false; }
+  };
   function renderRoster() {
+    const nOn = A.members.filter((m) => m.claim_token).length;
+    $('roster-time').textContent = A.members.length ? `已綁定 ${nOn}/${A.members.length}・${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} 更新　` : '';
     $('groups').innerHTML = A.groups.map((g) => `<div class="grp" style="border-top:5px solid ${groupColor(g.position)}"><div class="row" style="justify-content:space-between">${groupChip(g.name, g.position)}<span class="code">${esc(g.code)}</span></div>
       <ul style="margin-top:6px">${g.members.map((m) => `<li><span>${esc(m.name)} <span class="sub">${esc(m.student_no)}</span></span>
         <span>${m.claim_token ? `<span class="pill ok">已綁定</span> <button class="ghost small" data-reset="${m.id}">重設</button>` : '<span class="sub">未登入</span>'}${A.act.inter_paced ? ` <button class="ghost small ${m.makeup ? 'on' : ''}" data-makeup="${m.id}" title="不受逐組開放與晚到限制">${m.makeup ? '✓ 可補評' : '補評'}</button>` : ''}</span></li>`).join('')}</ul></div>`).join('')
@@ -702,7 +712,7 @@ button.danger.small { padding: 6px 12px; font-size: 13px; }
     // 逐組開放
     $('pace-on').checked = paced;
     $('pace-note').textContent = paced
-      ? '每組開始報告時按下方按鈕，學生約 10 秒內就能評那一組，之後一直可評到妳結束評分。晚到的同學不評他進來前就開始報告的組（可在「名單」為個別同學開補評）。組內互評不受影響。'
+      ? '每組開始報告時按下方按鈕，學生約 10 秒內就能評那一組，之後一直可評到妳結束評分。下一組開放時，前一組才算報告結束；在那之後才選名字的同學，不評那一組（可在「名單」為個別同學開補評）。組內互評不受影響。'
       : '開啟後，組間評分要等妳按下開放才能評；建議上課一開始先請全班掃碼選名字。';
     const next = paced ? done.find((g) => !g.inter_opened_at) : null;
     $('pace-act').innerHTML = !paced ? ''

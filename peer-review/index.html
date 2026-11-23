@@ -318,12 +318,12 @@ button:disabled { opacity: .45; cursor: default; }
     if (!intraOn) S.tab = 'inter';
     $('tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
     const hasRate = crits(S.tab).length > 0;
-    // 逐組開放：還沒報告的組先鎖住；進來前就開始報告的組（晚到）不用評
+    // 逐組開放：還沒報告的組先鎖住；進來前就整組報告完的組（下一組已開放）不用評
     const paced = S.tab === 'inter' && a.inter_paced && !S.makeup;
     const state = (t) => S.done[S.tab].has(t.id) ? 'done'
       : !paced ? 'open'
       : !t.opened_at ? 'notyet'
-      : S.arrived && S.arrived > Date.parse(t.opened_at) ? 'missed' : 'open';
+      : S.arrived && t.ended_at && S.arrived > Date.parse(t.ended_at) ? 'missed' : 'open';
     const list = hasRate ? targets(S.tab).filter((t) => state(t) !== 'missed') : [], done = S.done[S.tab];
     const pq = pickQs(S.tab);
     const total = list.length + pq.length;
@@ -333,7 +333,7 @@ button:disabled { opacity: .45; cursor: default; }
       ? `全部完成（${n}/${total}），謝謝你！`
       : `已完成 ${n}/${total}${S.tab !== 'inter' ? '' : paced ? '　每組開始報告時，老師會開放評分' : '　每組報告結束後再評'}`;
     const missed = hasRate && paced ? targets('inter').filter((t) => state(t) === 'missed').length : 0;
-    if (missed) $('progress').textContent += `（${missed} 組在你進來前就報告了，不用評）`;
+    if (missed) $('progress').textContent += `（${missed} 組在你進來前就報告完了，不用評）`;
     renderPicks(pq);
     $('list').innerHTML = list.map((t) => {
       const st = state(t), d = st === 'done', wait = st === 'notyet';
