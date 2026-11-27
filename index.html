@@ -11,8 +11,8 @@
   --dot: #e4dfd3;
   --ink: #2f2b33;
   --ink-dim: #6b6470;
-  --orange: #f0734f;
-  --mint: #2a9d84;
+  --purple: #7a5ae0;
+  --blue: #2f7fd6;
 }
 body {
   font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
@@ -27,10 +27,10 @@ body {
   padding: 56px 20px 32px;
 }
 header { text-align: center; margin-bottom: 44px; }
-.logo { font-size: 34px; font-weight: 900; color: var(--orange); position: relative; }
+.logo { font-size: 34px; font-weight: 900; color: var(--purple); position: relative; }
 .logo::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 6px; border-radius: 6px;
-  background: linear-gradient(90deg, #ffb08f, #ffd36b, #7fd8c0);
+  background: linear-gradient(90deg, #b9a4ff, #ffd36b, #8fc8ff);
 }
 .logo-sub { font-size: 34px; font-weight: 800; margin-left: 6px; }
 .tagline { margin-top: 14px; color: #7a7380; font-size: 15px; }
@@ -65,26 +65,28 @@ header { text-align: center; margin-bottom: 44px; }
 .card:not(.coming)::after {
   content: ""; position: absolute; top: 0; left: 0; right: 0; height: 9px; border-radius: 6px 6px 0 0;
 }
-.c1::after { background: linear-gradient(90deg, #ffb08f, #ffc98f); }
-.c2::after { background: linear-gradient(90deg, #7fd8c0, #9fd0f5); }
+.c1::after { background: linear-gradient(90deg, #b9a4ff, #f5b3e0); }
+.c2::after { background: linear-gradient(90deg, #8fc8ff, #ffd36b); }
 
 .icon { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; margin-bottom: 16px; }
-.icon svg { width: 52px; height: 52px; }
+.emoji { font-size: 36px; line-height: 1; }
+.c1 .icon, .c2 .icon { width: auto; height: auto; justify-content: start; margin-bottom: 14px; }
+.icon svg { width: 42px; height: 42px; }
 .icon { transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
-.card:not(.coming):hover .icon { transform: rotate(-8deg) scale(1.08); }
-.c1 .icon { background: #ffeee5; color: var(--orange); }
-.c2 .icon { background: #e3f5ef; color: var(--mint); }
+.card:not(.coming):hover .icon { transform: rotate(-8deg) scale(1.12); }
+.c1 .icon { background: none; }
+.c2 .icon { background: none; }
 .card h2 { font-size: 20px; margin-bottom: 8px; }
 .card p { text-wrap: pretty; font-size: 14px; line-height: 1.7; color: var(--ink-dim); flex: 1; }
 .go { margin-top: 18px; font-size: 14px; font-weight: 700; }
-.c1 .go { color: var(--orange); }
-.c2 .go { color: var(--mint); }
+.c1 .go { color: var(--purple); }
+.c2 .go { color: var(--blue); }
 
 .coming { background: rgba(255, 255, 255, .55); border: 2px dashed #e0d9cc; box-shadow: none; cursor: default; }
-.coming .icon { background: #f4f0e8; color: #b5ab9b; }
+.coming .icon { background: none; width: auto; height: auto; justify-content: start; margin-bottom: 14px; opacity: .55; }
 
 footer { margin-top: auto; padding-top: 48px; font-size: 12px; text-align: center; }
-footer a { color: var(--orange); text-decoration: none; }
+footer a { color: var(--purple); text-decoration: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .card { transition: none; }
@@ -100,21 +102,21 @@ footer a { color: var(--orange); text-decoration: none; }
 
 <div class="grid">
   <a class="card c1" href="class-wheel/index.html">
-    <div class="icon"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26" r="17" fill="#ffd2bf"/><path d="M24 26L24 9A17 17 0 0 1 38.7 17.5Z" fill="#f0734f"/><path d="M24 26L38.7 34.5A17 17 0 0 1 24 43Z" fill="#ffb08f"/><path d="M24 26L9.3 34.5A17 17 0 0 1 9.3 17.5Z" fill="#f0734f"/><circle cx="24" cy="26" r="4" fill="#fff" stroke="#c2562f" stroke-width="2"/><path d="M19.5 3.5h9L24 10z" fill="#c2562f"/></svg></div>
+    <div class="icon"><span class="emoji">🎡</span></div>
     <h2>課堂轉盤</h2>
     <p>隨機抽人、分組、抽組長。</p>
     <span class="go">開始使用 →</span>
   </a>
 
   <a class="card c2" href="peer-review/admin.html">
-    <div class="icon"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="7" width="32" height="37" rx="6" fill="#bfe9dc"/><rect x="17" y="4" width="14" height="7" rx="3" fill="#2a9d84"/><rect x="13" y="16" width="22" height="8" rx="4" fill="#fff"/><rect x="13" y="28" width="22" height="8" rx="4" fill="#fff"/><path d="M15.5 20l2 2 3.5-3.5M15.5 32l2 2 3.5-3.5" fill="none" stroke="#2a9d84" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26" cy="20" r="1.6" fill="#ffb000"/><circle cx="30" cy="20" r="1.6" fill="#ffb000"/><circle cx="26" cy="32" r="1.6" fill="#ffb000"/><circle cx="30" cy="32" r="1.6" fill="#ffb000"/></svg></div>
+    <div class="icon"><span class="emoji">📝</span></div>
     <h2>同儕互評</h2>
     <p>學生掃碼評分，老師一鍵算成績。</p>
     <span class="go">開始使用 →</span>
   </a>
 
   <div class="card coming">
-    <div class="icon"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M24 13v22M13 24h22"/></svg></div>
+    <div class="icon"><span class="emoji">✨</span></div>
     <h2>下一個小工具</h2>
     <p>構思中，歡迎許願！</p>
   </div>
