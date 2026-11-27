@@ -38,7 +38,7 @@ header { text-align: center; margin-bottom: 44px; }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 280px));
-  gap: 40px 28px;
+  gap: 36px 28px;
   justify-content: center;
   width: 100%;
   max-width: 960px;
@@ -68,20 +68,12 @@ header { text-align: center; margin-bottom: 44px; }
 .c1::after { background: linear-gradient(90deg, #ffb08f, #ffc98f); }
 .c2::after { background: linear-gradient(90deg, #7fd8c0, #9fd0f5); }
 
-/* 角落便利貼＝工具圖示 */
-.icon {
-  position: absolute; top: -20px; right: 20px; width: 76px; height: 76px; z-index: 2;
-  display: grid; place-items: center;
-  border-radius: 4px 4px 4px 18px;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, .08);
-  transition: transform .25s cubic-bezier(.3, 1.6, .5, 1);
-}
-.icon svg { width: 44px; height: 44px; }
-.c1 .icon { background: #ffe48a; color: #c2562f; transform: rotate(8deg); }
-.c2 .icon { background: #ffc9d6; color: #1f7f6b; transform: rotate(-7deg); }
-.c1:hover .icon { transform: rotate(-4deg) scale(1.06); }
-.c2:hover .icon { transform: rotate(5deg) scale(1.06); }
-.card h2 { margin-top: 6px; padding-right: 84px; }
+.icon { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; margin-bottom: 16px; }
+.icon svg { width: 52px; height: 52px; }
+.icon { transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+.card:not(.coming):hover .icon { transform: rotate(-8deg) scale(1.08); }
+.c1 .icon { background: #ffeee5; color: var(--orange); }
+.c2 .icon { background: #e3f5ef; color: var(--mint); }
 .card h2 { font-size: 20px; margin-bottom: 8px; }
 .card p { text-wrap: pretty; font-size: 14px; line-height: 1.7; color: var(--ink-dim); flex: 1; }
 .go { margin-top: 18px; font-size: 14px; font-weight: 700; }
@@ -89,7 +81,7 @@ header { text-align: center; margin-bottom: 44px; }
 .c2 .go { color: var(--mint); }
 
 .coming { background: rgba(255, 255, 255, .55); border: 2px dashed #e0d9cc; box-shadow: none; cursor: default; }
-.coming .icon { background: #fbf8f2; border: 2px dashed #e0d9cc; box-shadow: none; color: #b5ab9b; transform: rotate(4deg); }
+.coming .icon { background: #f4f0e8; color: #b5ab9b; }
 
 footer { margin-top: auto; padding-top: 48px; font-size: 12px; text-align: center; }
 footer a { color: var(--orange); text-decoration: none; }
@@ -108,14 +100,14 @@ footer a { color: var(--orange); text-decoration: none; }
 
 <div class="grid">
   <a class="card c1" href="class-wheel/index.html">
-    <div class="icon"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="26" r="16"/><circle cx="24" cy="26" r="3.2"/><path d="M24 10v12.8M24 29.2V42M8 26h12.8M27.2 26H40M12.7 14.7l9 9M26.3 28.3l9 9M35.3 14.7l-9 9M21.7 28.3l-9 9"/><path d="M20 4.5h8L24 10z" fill="currentColor"/></svg></div>
+    <div class="icon"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26" r="17" fill="#ffd2bf"/><path d="M24 26L24 9A17 17 0 0 1 38.7 17.5Z" fill="#f0734f"/><path d="M24 26L38.7 34.5A17 17 0 0 1 24 43Z" fill="#ffb08f"/><path d="M24 26L9.3 34.5A17 17 0 0 1 9.3 17.5Z" fill="#f0734f"/><circle cx="24" cy="26" r="4" fill="#fff" stroke="#c2562f" stroke-width="2"/><path d="M19.5 3.5h9L24 10z" fill="#c2562f"/></svg></div>
     <h2>課堂轉盤</h2>
     <p>隨機抽人、分組、抽組長。</p>
     <span class="go">開始使用 →</span>
   </a>
 
   <a class="card c2" href="peer-review/admin.html">
-    <div class="icon"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="8" width="30" height="35" rx="5"/><path d="M18 8V5.5h12V8"/><path d="M16 20l2.5 2.5L23 18M16 31l2.5 2.5L23 29"/><path d="M28 20.5h5M28 31.5h5"/></svg></div>
+    <div class="icon"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="7" width="32" height="37" rx="6" fill="#bfe9dc"/><rect x="17" y="4" width="14" height="7" rx="3" fill="#2a9d84"/><rect x="13" y="16" width="22" height="8" rx="4" fill="#fff"/><rect x="13" y="28" width="22" height="8" rx="4" fill="#fff"/><path d="M15.5 20l2 2 3.5-3.5M15.5 32l2 2 3.5-3.5" fill="none" stroke="#2a9d84" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26" cy="20" r="1.6" fill="#ffb000"/><circle cx="30" cy="20" r="1.6" fill="#ffb000"/><circle cx="26" cy="32" r="1.6" fill="#ffb000"/><circle cx="30" cy="32" r="1.6" fill="#ffb000"/></svg></div>
     <h2>同儕互評</h2>
     <p>學生掃碼評分，老師一鍵算成績。</p>
     <span class="go">開始使用 →</span>
