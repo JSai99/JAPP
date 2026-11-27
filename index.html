@@ -7,96 +7,121 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg: #26292b;
-  --card: #323639;
-  --accent: #4f8cff;
-  --text: #e8eaed;
-  --text-dim: #9aa0a6;
+  --paper: #fffdf8;
+  --dot: #e4dfd3;
+  --ink: #2f2b33;
+  --ink-dim: #6b6470;
+  --orange: #f0734f;
+  --mint: #2a9d84;
 }
 body {
   font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--paper);
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+  color: var(--ink);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 24px;
+  padding: 56px 20px 32px;
 }
-header { text-align: center; margin-bottom: 40px; }
-.logo {
-  display: inline-block;
-  font-size: 15px; font-weight: 800; letter-spacing: 1px;
-  background: var(--accent); color: #fff;
-  padding: 4px 12px; border-radius: 8px 0 0 8px;
+header { text-align: center; margin-bottom: 44px; }
+.logo { font-size: 34px; font-weight: 900; color: var(--orange); position: relative; }
+.logo::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 6px; border-radius: 6px;
+  background: linear-gradient(90deg, #ffb08f, #ffd36b, #7fd8c0);
 }
-.logo-sub {
-  display: inline-block;
-  font-size: 15px; background: #1c1e1f; color: var(--text-dim);
-  padding: 4px 12px; border-radius: 0 8px 8px 0;
-}
-h1 { font-size: 26px; margin: 18px 0 8px; }
-.tagline { color: var(--text-dim); font-size: 14px; }
+.logo-sub { font-size: 34px; font-weight: 800; margin-left: 6px; }
+.tagline { margin-top: 14px; color: #7a7380; font-size: 15px; }
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 300px));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 280px));
+  gap: 28px;
   justify-content: center;
   width: 100%;
-  max-width: 980px;
+  max-width: 960px;
 }
 .card {
-  background: var(--card);
-  border: 1px solid #44484c;
-  border-radius: 14px;
-  padding: 26px 22px;
+  position: relative;
+  display: flex; flex-direction: column;
+  background: #fff;
+  border-radius: 6px 6px 20px 6px;
+  padding: 36px 24px 26px;
   text-decoration: none;
-  color: var(--text);
-  transition: transform .12s, border-color .12s, box-shadow .12s;
-  display: block;
+  color: var(--ink);
+  box-shadow: 0 8px 22px rgba(90, 70, 60, .09);
+  transition: transform .2s cubic-bezier(.3, 1.6, .5, 1), box-shadow .2s;
 }
-.card:hover {
-  transform: translateY(-3px);
-  border-color: var(--accent);
-  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+/* 手帳便利貼：平常微微歪著，滑過時輕晃擺正 */
+.c1 { transform: rotate(-1.6deg); }
+.c2 { transform: rotate(1.3deg); }
+.c1:hover, .c1:focus-visible { transform: rotate(.8deg) translateY(-5px); }
+.c2:hover, .c2:focus-visible { transform: rotate(-.8deg) translateY(-5px); }
+.card:not(.coming):hover { box-shadow: 0 16px 32px rgba(90, 70, 60, .15); }
+
+/* 頂端彩帶 */
+.card:not(.coming)::after {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 9px; border-radius: 6px 6px 0 0;
 }
-.card .icon { font-size: 34px; margin-bottom: 12px; }
-.card h2 { font-size: 17px; margin-bottom: 6px; }
-.card p { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
-.card.coming {
-  border-style: dashed;
-  opacity: .55;
-  cursor: default;
+.c1::after { background: linear-gradient(90deg, #ffb08f, #ffc98f); }
+.c2::after { background: linear-gradient(90deg, #7fd8c0, #9fd0f5); }
+/* 角落小便利貼 */
+.card:not(.coming)::before {
+  content: ""; position: absolute; top: -10px; right: 22px; width: 46px; height: 46px;
+  border-radius: 4px 4px 4px 14px; box-shadow: 0 4px 8px rgba(0, 0, 0, .07);
 }
-footer { margin-top: auto; padding-top: 40px; font-size: 12px; color: var(--text-dim); text-align: center; }
-footer a { color: var(--accent); text-decoration: none; }
+.c1::before { background: #ffe48a; transform: rotate(8deg); }
+.c2::before { background: #ffc9d6; transform: rotate(-7deg); }
+
+.icon { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; margin-bottom: 16px; }
+.icon svg { width: 42px; height: 42px; }
+.c1 .icon { background: #ffeee5; color: var(--orange); }
+.c2 .icon { background: #e3f5ef; color: var(--mint); }
+.card h2 { font-size: 20px; margin-bottom: 8px; }
+.card p { text-wrap: pretty; font-size: 14px; line-height: 1.7; color: var(--ink-dim); flex: 1; }
+.go { margin-top: 18px; font-size: 14px; font-weight: 700; }
+.c1 .go { color: var(--orange); }
+.c2 .go { color: var(--mint); }
+
+.coming { background: rgba(255, 255, 255, .55); border: 2px dashed #e0d9cc; box-shadow: none; cursor: default; }
+.coming .icon { background: #f4f0e8; color: #b5ab9b; }
+
+footer { margin-top: auto; padding-top: 48px; font-size: 12px; text-align: center; }
+footer a { color: var(--orange); text-decoration: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+}
 </style>
 </head>
 <body>
 
 <header>
   <div><span class="logo">JAPP</span><span class="logo-sub">工具箱</span></div>
-  <h1>自己動手做的小工具們</h1>
   <p class="tagline">純瀏覽器端、免安裝、檔案不離開你的電腦</p>
 </header>
 
 <div class="grid">
-  <a class="card" href="class-wheel/index.html">
-    <div class="icon">🎡</div>
+  <a class="card c1" href="class-wheel/index.html">
+    <div class="icon"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="26" r="16"/><circle cx="24" cy="26" r="3.2"/><path d="M24 10v12.8M24 29.2V42M8 26h12.8M27.2 26H40M12.7 14.7l9 9M26.3 28.3l9 9M35.3 14.7l-9 9M21.7 28.3l-9 9"/><path d="M20 4.5h8L24 10z" fill="currentColor"/></svg></div>
     <h2>課堂轉盤</h2>
-    <p>隨機抽人提問（轉盤／拉霸）、依性別或系級平均分組、每組抽組長；多班名單、音效與彩帶，適合投影。</p>
+    <p>隨機抽人、分組、抽組長。</p>
+    <span class="go">開始使用 →</span>
   </a>
 
-  <a class="card" href="peer-review/admin.html">
-    <div class="icon">📝</div>
+  <a class="card c2" href="peer-review/admin.html">
+    <div class="icon"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="8" width="30" height="35" rx="5"/><path d="M18 8V5.5h12V8"/><path d="M16 20l2.5 2.5L23 18M16 31l2.5 2.5L23 29"/><path d="M28 20.5h5M28 31.5h5"/></svg></div>
     <h2>同儕互評</h2>
-    <p>報告時的組間互評與組內互評：學生手機掃碼評分，老師自訂面向、看進度、算成績、匯出 Excel。（資料存在老師自己的 Supabase）</p>
+    <p>學生掃碼評分，老師一鍵算成績。</p>
+    <span class="go">開始使用 →</span>
   </a>
 
   <div class="card coming">
-    <div class="icon">🧰</div>
+    <div class="icon"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M24 13v22M13 24h22"/></svg></div>
     <h2>下一個小工具</h2>
-    <p>正在構思中——有想法歡迎提出！</p>
+    <p>構思中，歡迎許願！</p>
   </div>
 </div>
 
